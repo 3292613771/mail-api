@@ -75,6 +75,22 @@
             background: #ccc;
             cursor: not-allowed;
         }
+        .delete-password-area {
+            background: #fff3e0;
+            padding: 15px;
+            border-radius: 12px;
+            margin: 20px 0;
+            border: 1px solid #ffcc80;
+        }
+        .delete-password-area label {
+            color: #e65100;
+            margin-bottom: 5px;
+        }
+        .delete-password-area .hint {
+            font-size: 12px;
+            color: #ff9800;
+            margin-top: 5px;
+        }
         .result {
             margin-top: 30px;
             display: none;
@@ -116,6 +132,20 @@
             max-height: 400px;
             overflow-y: auto;
         }
+        .delete-btn {
+            background: #ff4444;
+            color: white;
+            border: none;
+            padding: 8px 16px;
+            border-radius: 8px;
+            cursor: pointer;
+            margin-top: 12px;
+            font-size: 13px;
+            font-weight: bold;
+        }
+        .delete-btn:hover {
+            background: #cc0000;
+        }
         .error {
             background: #ffebee;
             color: #c62828;
@@ -133,6 +163,11 @@
             color: #999;
             margin-top: 20px;
         }
+        .warning {
+            color: #e65100;
+            font-size: 12px;
+            margin-top: 5px;
+        }
     </style>
 </head>
 <body>
@@ -147,6 +182,12 @@
             </div>
             
             <button id="checkBtn" onclick="checkMail()">🔍 查询最新邮件</button>
+            
+            <div class="delete-password-area">
+                <label>🔐 删除密码</label>
+                <input type="password" id="deletePassword" placeholder="输入删除密码后才能删除邮件">
+                <div class="hint">⚠️ 删除后无法恢复，请谨慎操作</div>
+            </div>
         </div>
         
         <div id="result" class="result"></div>
@@ -185,11 +226,12 @@
                     let html = `<div style="margin-bottom:20px;font-weight:bold;">📬 最新${data.mails.length}封邮件</div>`;
                     for (let mail of data.mails) {
                         html += `
-                            <div class="mail-item">
+                            <div class="mail-item" data-mail-id="${escapeHtml(mail.mail_id)}">
                                 <div class="mail-sender">📨 ${escapeHtml(mail.sender)}</div>
                                 <div class="mail-subject">📝 ${escapeHtml(mail.subject)}</div>
                                 ${mail.code ? `<div class="mail-code">🔑 验证码：${mail.code}</div>` : ''}
                                 <div class="mail-content">${escapeHtml(mail.content).replace(/\n/g, '<br>')}</div>
+                                <button class="delete-btn" onclick="deleteMail('${escapeHtml(mail.mail_id)}')">🗑️ 删除这封邮件</button>
                             </div>
                         `;
                     }
@@ -205,6 +247,48 @@
             }
         }
         
+        async function deleteMail(mailId) {
+            const email = document.getElementById('email').value.trim();
+            const password = document.getElementById('deletePassword').value.trim();
+            
+            if (!email) {
+                alert('请先输入邮箱');
+                return;
+            }
+            
+            if (!password) {
+                alert('请输入删除密码');
+                return;
+            }
+            
+            if (!confirm('⚠️ 确定要永久删除这封邮件吗？删除后无法恢复！')) {
+                return;
+            }
+            
+            try {
+                const response = await fetch('/delete', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ 
+                        email: email, 
+                        mail_id: mailId,
+                        password: password
+                    })
+                });
+                
+                const data = await response.json();
+                
+                if (data.success) {
+                    alert('✅ 删除成功！');
+                    checkMail();  // 刷新邮件列表
+                } else {
+                    alert('❌ ' + data.error);
+                }
+            } catch (error) {
+                alert('❌ 请求失败：' + error.message);
+            }
+        }
+        
         function escapeHtml(text) {
             if (!text) return '';
             const div = document.createElement('div');
@@ -213,6 +297,9 @@
         }
         
         document.getElementById('email').addEventListener('keypress', function(e) {
+            if (e.key === 'Enter') checkMail();
+        });
+        document.getElementById('deletePassword').addEventListener('keypress', function(e) {
             if (e.key === 'Enter') checkMail();
         });
     </script>
