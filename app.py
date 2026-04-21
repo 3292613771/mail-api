@@ -8,8 +8,15 @@ import time
 from email.header import decode_header
 from email.utils import parsedate_to_datetime
 import datetime
+import hashlib
 
 app = Flask(__name__)
+
+# ========== 删除密码配置 ==========
+# 在这里设置删除密码（修改成你想要的密码）
+DELETE_PASSWORD = "112233"  # 改成你自己的密码
+# 存储密码的哈希值（用于验证）
+DELETE_PASSWORD_HASH = hashlib.sha256(DELETE_PASSWORD.encode()).hexdigest()
 
 # ========== 读取账号配置 ==========
 def load_accounts():
@@ -60,17 +67,12 @@ def decode_str(s):
 def clean_html_to_text(html_text):
     if not html_text:
         return ""
-    # 去除 style 和 script
     text = re.sub(r'<style[^>]*>.*?</style>', '', html_text, flags=re.DOTALL | re.IGNORECASE)
     text = re.sub(r'<script[^>]*>.*?</script>', '', text, flags=re.DOTALL | re.IGNORECASE)
-    # 换行标签转成换行
     text = re.sub(r'<br\s*/?>', '\n', text, flags=re.IGNORECASE)
     text = re.sub(r'</?(div|p|tr|td|li|h[1-6])[^>]*>', '\n', text, flags=re.IGNORECASE)
-    # 去掉所有其他HTML标签
     text = re.sub(r'<[^>]+>', ' ', text)
-    # 解码HTML实体
     text = html.unescape(text)
-    # 清理空白
     text = re.sub(r'\n\s*\n', '\n\n', text)
     text = re.sub(r'[ \t]+', ' ', text)
     return text.strip()
@@ -147,6 +149,7 @@ def get_latest_mails(email_addr, limit=10):
         
         for mail_id in reversed(latest_ids):
             try:
+                mail_id_str = mail_id.decode() if isinstance(mail_id, bytes) else str(mail_id)
                 _, msg_data = mail.fetch(mail_id, "(RFC822)")
                 for part in msg_data:
                     if isinstance(part, tuple):
@@ -174,12 +177,13 @@ def get_latest_mails(email_addr, limit=10):
                                 code = code_match.group(1)
                         
                         mails.append({
+                            'mail_id': mail_id_str,
                             'sender': sender,
                             'subject': subject,
                             'content': content,
                             'code': code,
                             'time': send_time
-                        })
+            })
                         break
             except:
                 continue
@@ -190,6 +194,30 @@ def get_latest_mails(email_addr, limit=10):
         
     except Exception as e:
         return {'error': f'连接失败：{str(e)}'}
+
+def delete_mail_by_id(email_addr, mail_id):
+    """删除指定邮件"""
+    if email_addr not in ACCOUNTS:
+        return {'error': f'邮箱 "{email_addr}" 未绑定'}
+    
+    auth_code = ACCOUNTS[email_addr]
+    
+    try:
+        mail = imaplib.IMAP4_SSL("imap.qq.com")
+        mail.login(email_addr, auth_code)
+        mail.select("INBOX")
+        
+        # 标记为删除
+        mail.store(mail_id.encode(), '+FLAGS', '\\Deleted')
+        # 永久删除
+        mail.expunge()
+        
+        mail.close()
+        mail.logout()
+        return {'success': True, 'message': '邮件已删除'}
+        
+    except Exception as e:
+        return {'error': f'删除失败：{str(e)}'}
 
 # ========== API 路由 ==========
 @app.route('/')
@@ -222,6 +250,38 @@ def check():
         'total': len(result)
     })
 
+@app.route('/delete', methods=['POST'])
+def delete():
+    """删除邮件接口（需要密码验证）"""
+    data = request.get_json()
+    if not data:
+        return jsonify({'error': '请提供 JSON 数据'})
+    
+    email_addr = data.get('email', '').strip()
+    mail_id = data.get('mail_id', '').strip()
+    password = data.get('password', '').strip()
+    
+    # 验证删除密码
+    password_hash = hashlib.sha256(password.encode()).hexdigest()
+    if password_hash != DELETE_PASSWORD_HASH:
+        return jsonify({'error': '删除密码错误，无法删除'})
+    
+    if not email_addr:
+        return jsonify({'error': '请提供邮箱地址'})
+    
+    if not mail_id:
+        return jsonify({'error': '请提供邮件ID'})
+    
+    if '@' not in email_addr:
+        email_addr = email_addr + "@qq.com"
+    
+    result = delete_mail_by_id(email_addr, mail_id)
+    
+    if 'error' in result:
+        return jsonify({'error': result['error']})
+    
+    return jsonify({'success': True, 'message': '邮件已删除'})
+
 @app.route('/users', methods=['GET'])
 def list_users():
     return jsonify({
@@ -236,9 +296,10 @@ def health():
 # ========== 启动服务 ==========
 if __name__ == '__main__':
     print("=" * 60)
-    print("邮箱查询系统启动")
+    print("邮箱查询系统启动（支持删除邮件 + 删除密码保护）")
     print("=" * 60)
     print(f"已绑定 {len(ACCOUNTS)} 个邮箱")
+    print(f"删除密码: {DELETE_PASSWORD}")
     print("访问 http://127.0.0.1:5000")
     print("=" * 60)
     app.run(host='0.0.0.0', port=5000)
