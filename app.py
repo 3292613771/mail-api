@@ -151,6 +151,7 @@ def get_latest_mails(email_addr, limit=10):
             try:
                 mail_id_str = mail_id.decode() if isinstance(mail_id, bytes) else str(mail_id)
                 _, msg_data = mail.fetch(mail_id, "(RFC822)")
+                
                 for part in msg_data:
                     if isinstance(part, tuple):
                         msg = email.message_from_bytes(part[1])
@@ -166,13 +167,56 @@ def get_latest_mails(email_addr, limit=10):
                         
                         subject = decode_str(msg.get("Subject", "无主题"))
                         sender = decode_str(msg.get("From", "未知发件人"))
-                        content = get_mail_content(msg)
                         
-                        code_match = re.search(r'验证码[：:]\s*(\d{4,8})', content)
+                        # 获取完整内容（不截断）
+                        content_full = ""
+                        if msg.is_multipart():
+                            for subpart in msg.walk():
+                                subpart_content_type = subpart.get_content_type()
+                                subpart_charset = subpart.get_content_charset() or 'utf-8'
+                                
+                                if subpart_content_type == "text/plain":
+                                    payload = subpart.get_payload(decode=True)
+                                    if payload:
+                                        try:
+                                            content_full = payload.decode(subpart_charset, errors='replace')
+                                            break
+                                        except:
+                                            content_full = payload.decode('utf-8', errors='replace')
+                                            break
+                                elif subpart_content_type == "text/html" and not content_full:
+                                    payload = subpart.get_payload(decode=True)
+                                    if payload:
+                                        try:
+                                            html_text = payload.decode(subpart_charset, errors='replace')
+                                            content_full = clean_html_to_text(html_text)
+                                        except:
+                                            html_text = payload.decode('utf-8', errors='replace')
+                                            content_full = clean_html_to_text(html_text)
+                        else:
+                            payload = msg.get_payload(decode=True)
+                            if payload:
+                                subpart_content_type = msg.get_content_type()
+                                subpart_charset = msg.get_content_charset() or 'utf-8'
+                                try:
+                                    text = payload.decode(subpart_charset, errors='replace')
+                                except:
+                                    text = payload.decode('utf-8', errors='replace')
+                                
+                                if subpart_content_type == "text/html":
+                                    content_full = clean_html_to_text(text)
+                                else:
+                                    content_full = text
+                        
+                        if not content_full:
+                            content_full = "无法解析邮件内容"
+                        
+                        # 提取验证码
+                        code_match = re.search(r'验证码[：:]\s*(\d{4,8})', content_full)
                         code = code_match.group(1) if code_match else None
                         
                         if not code:
-                            code_match = re.search(r'(\d{6})', content)
+                            code_match = re.search(r'(\d{6})', content_full)
                             if code_match:
                                 code = code_match.group(1)
                         
@@ -180,12 +224,14 @@ def get_latest_mails(email_addr, limit=10):
                             'mail_id': mail_id_str,
                             'sender': sender,
                             'subject': subject,
-                            'content': content,
+                            'content': content_full,
                             'code': code,
                             'time': send_time
-            })
+                        })
                         break
-            except:
+                        
+            except Exception as e:
+                print(f"读取邮件失败: {e}")
                 continue
         
         mail.close()
