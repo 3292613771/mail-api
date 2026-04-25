@@ -123,7 +123,8 @@ def get_mail_content(msg):
         content = f"解析失败"
     
     if content:
-        
+        content = content[:2000]
+    
     return content.strip() or "无法解析邮件内容"
 
 def get_latest_mails(email_addr, limit=10):
