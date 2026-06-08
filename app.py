@@ -20,12 +20,30 @@ DELETE_PASSWORD_HASH = hashlib.sha256(DELETE_PASSWORD.encode()).hexdigest()
 
 # ========== 读取账号配置 ==========
 def load_accounts():
+    """读取账号配置，支持两种格式：
+    1. 邮箱1 邮箱2 邮箱3 授权码（空格隔开）
+    2. 邮箱----授权码（----隔开）
+    """
     accounts = {}
     try:
         with open("accounts.txt", "r", encoding="utf-8") as f:
             for line in f:
                 line = line.strip()
-                if line:
+                if not line:
+                    continue
+                
+                # 判断格式：如果包含 "----" 就用新格式
+                if "----" in line:
+                    parts = line.split("----")
+                    if len(parts) == 2:
+                        email = parts[0].strip()
+                        auth_code = parts[1].strip()
+                        if '@' not in email:
+                            email = email + "@qq.com"
+                        accounts[email] = auth_code
+                        print(f"加载账号（新格式）: {email}")
+                else:
+                    # 旧格式：空格隔开，前3个是邮箱，最后一个是授权码
                     parts = line.split()
                     if len(parts) >= 4:
                         emails = parts[0:3]
@@ -34,11 +52,14 @@ def load_accounts():
                             if '@' not in email:
                                 email = email + "@qq.com"
                             accounts[email] = auth_code
+                            print(f"加载账号（旧格式）: {email}")
                     elif len(parts) == 2:
                         email = parts[0]
+                        auth_code = parts[1]
                         if '@' not in email:
                             email = email + "@qq.com"
-                        accounts[email] = parts[1]
+                        accounts[email] = auth_code
+                        print(f"加载账号（旧格式）: {email}")
     except Exception as e:
         print(f"读取账号失败: {e}")
     return accounts
