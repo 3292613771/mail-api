@@ -122,10 +122,16 @@ def get_mail_content(msg):
                     if payload:
                         try:
                             html_text = payload.decode(charset, errors='replace')
-                            content = clean_html_to_text(html_text)
+                            # 去掉HTML标签
+                            import re, html
+                            content = re.sub(r'<[^>]+>', ' ', html_text)
+                            content = html.unescape(content)
+                            content = re.sub(r'\s+', ' ', content)
                         except:
                             html_text = payload.decode('utf-8', errors='replace')
-                            content = clean_html_to_text(html_text)
+                            content = re.sub(r'<[^>]+>', ' ', html_text)
+                            content = html.unescape(content)
+                            content = re.sub(r'\s+', ' ', content)
         else:
             payload = msg.get_payload(decode=True)
             if payload:
@@ -137,15 +143,16 @@ def get_mail_content(msg):
                     text = payload.decode('utf-8', errors='replace')
                 
                 if content_type == "text/html":
-                    content = clean_html_to_text(text)
+                    import re, html
+                    content = re.sub(r'<[^>]+>', ' ', text)
+                    content = html.unescape(content)
+                    content = re.sub(r'\s+', ' ', content)
                 else:
                     content = text
     except Exception as e:
         content = f"解析失败"
     
-    if content:
-        content = content[:2000]
-    
+    # 不截断内容
     return content.strip() or "无法解析邮件内容"
 
 def get_latest_mails(email_addr, limit=10):
