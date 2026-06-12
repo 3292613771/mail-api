@@ -122,16 +122,10 @@ def get_mail_content(msg):
                     if payload:
                         try:
                             html_text = payload.decode(charset, errors='replace')
-                            # 去掉HTML标签
-                            import re, html
-                            content = re.sub(r'<[^>]+>', ' ', html_text)
-                            content = html.unescape(content)
-                            content = re.sub(r'\s+', ' ', content)
+                            content = clean_html_to_text(html_text)
                         except:
                             html_text = payload.decode('utf-8', errors='replace')
-                            content = re.sub(r'<[^>]+>', ' ', html_text)
-                            content = html.unescape(content)
-                            content = re.sub(r'\s+', ' ', content)
+                            content = clean_html_to_text(html_text)
         else:
             payload = msg.get_payload(decode=True)
             if payload:
@@ -143,17 +137,30 @@ def get_mail_content(msg):
                     text = payload.decode('utf-8', errors='replace')
                 
                 if content_type == "text/html":
-                    import re, html
-                    content = re.sub(r'<[^>]+>', ' ', text)
-                    content = html.unescape(content)
-                    content = re.sub(r'\s+', ' ', content)
+                    content = clean_html_to_text(text)
                 else:
                     content = text
     except Exception as e:
         content = f"解析失败"
     
-    # 不截断内容
+    if content:
+        content = content[:2000]
+    
     return content.strip() or "无法解析邮件内容"
+
+# 如果没解析到内容，尝试从原始内容暴力提取验证码
+if content == "无法解析邮件内容" or len(content) < 10:
+    import re
+    raw = str(msg)
+    # 找带空格的6位数字
+    match = re.search(r'(\d)\s*(\d)\s*(\d)\s*(\d)\s*(\d)\s*(\d)', raw)
+    if match:
+        code = match.group(1)+match.group(2)+match.group(3)+match.group(4)+match.group(5)+match.group(6)
+        return f"验证码：{code}"
+    # 找连续6位数字
+    match = re.search(r'\b(\d{6})\b', raw)
+    if match:
+        return f"验证码：{match.group(1)}"
 
 def get_latest_mails(email_addr, limit=10):
     if email_addr not in ACCOUNTS:
