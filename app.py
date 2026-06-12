@@ -99,89 +99,62 @@ def clean_html_to_text(html_text):
     return text.strip()
 
 def get_mail_content(msg):
-    """获取邮件内容 - 超稳定版"""
+    """获取邮件内容 - 最终稳定版"""
     import re
     import html
     
-    raw_text = ""
-    
     try:
-        # 方法1：遍历所有部分，收集所有文字
+        # 获取原始内容
+        raw_content = ""
         if msg.is_multipart():
             for part in msg.walk():
                 payload = part.get_payload(decode=True)
                 if payload:
                     charset = part.get_content_charset() or 'utf-8'
                     try:
-                        text = payload.decode(charset, errors='replace')
+                        raw_content += payload.decode(charset, errors='replace')
                     except:
-                        text = payload.decode('utf-8', errors='replace')
-                    
-                    if text:
-                        raw_text += text + "\n"
+                        raw_content += payload.decode('utf-8', errors='replace')
         else:
             payload = msg.get_payload(decode=True)
             if payload:
                 charset = msg.get_content_charset() or 'utf-8'
                 try:
-                    raw_text = payload.decode(charset, errors='replace')
+                    raw_content = payload.decode(charset, errors='replace')
                 except:
-                    raw_text = payload.decode('utf-8', errors='replace')
+                    raw_content = payload.decode('utf-8', errors='replace')
         
-        # 如果还是空，暴力提取
-        if not raw_text:
-            raw_text = str(msg)
+        if not raw_content:
+            raw_content = str(msg)
         
-        # 去掉HTML标签
-        clean_text = re.sub(r'<[^>]+>', ' ', raw_text)
-        # 解码HTML实体
+        # 清理HTML
+        clean_text = re.sub(r'<[^>]+>', ' ', raw_content)
         clean_text = html.unescape(clean_text)
-        # 合并多余空白
         clean_text = re.sub(r'\s+', ' ', clean_text)
         
-        # 提取验证码（重点：处理带空格的数字）
+        # 提取验证码（支持带空格的数字）
         code = None
         
-        # 1. 找带空格的6位数字（Flova特色）
-        code_match = re.search(r'(\d)\s*(\d)\s*(\d)\s*(\d)\s*(\d)\s*(\d)', clean_text)
-        if code_match:
-            code = code_match.group(1) + code_match.group(2) + code_match.group(3) + \
-                   code_match.group(4) + code_match.group(5) + code_match.group(6)
+        # 匹配带空格的6位数字
+        match = re.search(r'(\d)\s*(\d)\s*(\d)\s*(\d)\s*(\d)\s*(\d)', clean_text)
+        if match:
+            code = match.group(1)+match.group(2)+match.group(3)+match.group(4)+match.group(5)+match.group(6)
         
-        # 2. 没找到就找连续6位数字
+        # 匹配连续6位数字
         if not code:
-            code_match = re.search(r'\b(\d{6})\b', clean_text)
-            if code_match:
-                code = code_match.group(1)
-        
-        # 3. 还没找到就找4-8位数字
-        if not code:
-            code_match = re.search(r'(\d{4,8})', clean_text)
-            if code_match:
-                code = code_match.group(1)
-        
-        # 4. 还是没找到，在原始内容中找
-        if not code:
-            code_match = re.search(r'(\d)\s*(\d)\s*(\d)\s*(\d)\s*(\d)\s*(\d)', raw_text)
-            if code_match:
-                code = code_match.group(1) + code_match.group(2) + code_match.group(3) + \
-                       code_match.group(4) + code_match.group(5) + code_match.group(6)
+            match = re.search(r'\b(\d{6})\b', clean_text)
+            if match:
+                code = match.group(1)
         
         # 返回结果
         if code and code != "000000":
-            # 截取验证码附近的内容
-            pos = clean_text.find(code)
-            if pos >= 0:
-                snippet = clean_text[max(0, pos-50):pos+100]
-            else:
-                snippet = clean_text[:300]
-            return f"验证码：{code}\n\n{snippet}"
+            return f"验证码：{code}"
         else:
-            # 没找到有效验证码，返回清理后的内容前500字
-            return clean_text[:500] if clean_text else "无法解析邮件内容"
-        
+            result = clean_text[:300]
+            return result if result else "无法解析邮件内容"
+            
     except Exception as e:
-        return f"解析失败：{str(e)}"
+        return f"解析失败"
 
 def get_latest_mails(email_addr, limit=10):
     if email_addr not in ACCOUNTS:
