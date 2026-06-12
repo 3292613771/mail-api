@@ -99,62 +99,54 @@ def clean_html_to_text(html_text):
     return text.strip()
 
 def get_mail_content(msg):
-    """获取邮件内容 - 最终稳定版"""
-    import re
-    import html
-    
+    content = ""
     try:
-        # 获取原始内容
-        raw_content = ""
         if msg.is_multipart():
             for part in msg.walk():
-                payload = part.get_payload(decode=True)
-                if payload:
-                    charset = part.get_content_charset() or 'utf-8'
-                    try:
-                        raw_content += payload.decode(charset, errors='replace')
-                    except:
-                        raw_content += payload.decode('utf-8', errors='replace')
+                content_type = part.get_content_type()
+                charset = part.get_content_charset() or 'utf-8'
+                
+                if content_type == "text/plain":
+                    payload = part.get_payload(decode=True)
+                    if payload:
+                        try:
+                            content = payload.decode(charset, errors='replace')
+                            if content.strip():
+                                break
+                        except:
+                            content = payload.decode('utf-8', errors='replace')
+                            if content.strip():
+                                break
+                elif content_type == "text/html" and not content:
+                    payload = part.get_payload(decode=True)
+                    if payload:
+                        try:
+                            html_text = payload.decode(charset, errors='replace')
+                            content = clean_html_to_text(html_text)
+                        except:
+                            html_text = payload.decode('utf-8', errors='replace')
+                            content = clean_html_to_text(html_text)
         else:
             payload = msg.get_payload(decode=True)
             if payload:
+                content_type = msg.get_content_type()
                 charset = msg.get_content_charset() or 'utf-8'
                 try:
-                    raw_content = payload.decode(charset, errors='replace')
+                    text = payload.decode(charset, errors='replace')
                 except:
-                    raw_content = payload.decode('utf-8', errors='replace')
-        
-        if not raw_content:
-            raw_content = str(msg)
-        
-        # 清理HTML
-        clean_text = re.sub(r'<[^>]+>', ' ', raw_content)
-        clean_text = html.unescape(clean_text)
-        clean_text = re.sub(r'\s+', ' ', clean_text)
-        
-        # 提取验证码（支持带空格的数字）
-        code = None
-        
-        # 匹配带空格的6位数字
-        match = re.search(r'(\d)\s*(\d)\s*(\d)\s*(\d)\s*(\d)\s*(\d)', clean_text)
-        if match:
-            code = match.group(1)+match.group(2)+match.group(3)+match.group(4)+match.group(5)+match.group(6)
-        
-        # 匹配连续6位数字
-        if not code:
-            match = re.search(r'\b(\d{6})\b', clean_text)
-            if match:
-                code = match.group(1)
-        
-        # 返回结果
-        if code and code != "000000":
-            return f"验证码：{code}"
-        else:
-            result = clean_text[:300]
-            return result if result else "无法解析邮件内容"
-            
+                    text = payload.decode('utf-8', errors='replace')
+                
+                if content_type == "text/html":
+                    content = clean_html_to_text(text)
+                else:
+                    content = text
     except Exception as e:
-        return f"解析失败"
+        content = f"解析失败"
+    
+    if content:
+        content = content[:2000]
+    
+    return content.strip() or "无法解析邮件内容"
 
 def get_latest_mails(email_addr, limit=10):
     if email_addr not in ACCOUNTS:
