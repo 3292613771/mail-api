@@ -143,19 +143,24 @@ def get_mail_content(msg):
     except Exception as e:
         content = f"解析失败"
     
-    # 如果没解析到内容，尝试从原始内容暴力提取验证码
-    if content == "无法解析邮件内容" or len(content) < 10:
-    import re
-    raw = str(msg)
-    # 找带空格的6位数字
-    match = re.search(r'(\d)\s*(\d)\s*(\d)\s*(\d)\s*(\d)\s*(\d)', raw)
-    if match:
-        code = match.group(1)+match.group(2)+match.group(3)+match.group(4)+match.group(5)+match.group(6)
-        return f"验证码：{code}"
-    # 找连续6位数字
-    match = re.search(r'\b(\d{6})\b', raw)
-    if match:
-        return f"验证码：{match.group(1)}"
+    if content:
+        content = content[:2000]
+    
+    # 如果内容太少或无法解析，尝试从原始邮件中暴力提取验证码
+    if not content or content == "无法解析邮件内容" or len(content) < 10:
+        import re
+        raw = str(msg)
+        # 找带空格的6位数字（如 6 9 3 1 6 3）
+        match = re.search(r'(\d)\s*(\d)\s*(\d)\s*(\d)\s*(\d)\s*(\d)', raw)
+        if match:
+            code = match.group(1)+match.group(2)+match.group(3)+match.group(4)+match.group(5)+match.group(6)
+            return f"验证码：{code}"
+        # 找连续6位数字
+        match = re.search(r'\b(\d{6})\b', raw)
+        if match:
+            return f"验证码：{match.group(1)}"
+    
+    return content.strip() or "无法解析邮件内容"
 
 def get_latest_mails(email_addr, limit=10):
     if email_addr not in ACCOUNTS:
