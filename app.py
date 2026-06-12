@@ -144,7 +144,7 @@ def get_mail_content(msg):
         content = f"解析失败"
     
     # 如果没解析到内容，尝试从原始内容暴力提取验证码
-if content == "无法解析邮件内容" or len(content) < 10:
+    if content == "无法解析邮件内容" or len(content) < 10:
     import re
     raw = str(msg)
     # 找带空格的6位数字
