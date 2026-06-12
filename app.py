@@ -99,68 +99,75 @@ def clean_html_to_text(html_text):
     return text.strip()
 
 def get_mail_content(msg):
+    """获取邮件纯文本内容"""
+    import re
+    import html
+    
     content = ""
+    
     try:
         if msg.is_multipart():
             for part in msg.walk():
-                content_type = part.get_content_type()
-                charset = part.get_content_charset() or 'utf-8'
+                payload = part.get_payload(decode=True)
+                if not payload:
+                    continue
                 
-                if content_type == "text/plain":
-                    payload = part.get_payload(decode=True)
-                    if payload:
-                        try:
-                            content = payload.decode(charset, errors='replace')
-                            if content.strip():
-                                break
-                        except:
-                            content = payload.decode('utf-8', errors='replace')
-                            if content.strip():
-                                break
-                elif content_type == "text/html" and not content:
-                    payload = part.get_payload(decode=True)
-                    if payload:
-                        try:
-                            html_text = payload.decode(charset, errors='replace')
-                            content = clean_html_to_text(html_text)
-                        except:
-                            html_text = payload.decode('utf-8', errors='replace')
-                            content = clean_html_to_text(html_text)
+                charset = part.get_content_charset() or 'utf-8'
+                try:
+                    text = payload.decode(charset, errors='replace')
+                except:
+                    text = payload.decode('utf-8', errors='replace')
+                
+                if not text.strip():
+                    continue
+                
+                # 优先取纯文本
+                if part.get_content_type() == "text/plain":
+                    content = text.strip()
+                    break
+                
+                # 如果没有纯文本，暂存HTML
+                if part.get_content_type() == "text/html" and not content:
+                    # 去掉HTML标签
+                    clean = re.sub(r'<style[^>]*>.*?</style>', '', text, flags=re.DOTALL)
+                    clean = re.sub(r'<[^>]+>', ' ', clean)
+                    clean = html.unescape(clean)
+                    clean = re.sub(r'\s+', ' ', clean)
+                    content = clean.strip()
+        
         else:
             payload = msg.get_payload(decode=True)
             if payload:
-                content_type = msg.get_content_type()
                 charset = msg.get_content_charset() or 'utf-8'
                 try:
                     text = payload.decode(charset, errors='replace')
                 except:
                     text = payload.decode('utf-8', errors='replace')
                 
-                if content_type == "text/html":
-                    content = clean_html_to_text(text)
+                if msg.get_content_type() == "text/html":
+                    clean = re.sub(r'<[^>]+>', ' ', text)
+                    clean = html.unescape(clean)
+                    clean = re.sub(r'\s+', ' ', clean)
+                    content = clean.strip()
                 else:
-                    content = text
-    except Exception as e:
-        content = f"解析失败"
-    
-    if content:
-        content = content[:2000]
-    
-    # 如果内容太少或无法解析，尝试从原始邮件中暴力提取验证码
-    if not content or content == "无法解析邮件内容" or len(content) < 10:
-        import re
-        raw = str(msg)
-        # 找带空格的6位数字（如 6 9 3 1 6 3）
-        match = re.search(r'(\d)\s*(\d)\s*(\d)\s*(\d)\s*(\d)\s*(\d)', raw)
+                    content = text.strip()
+        
+        if not content:
+            return "无法解析邮件内容"
+        
+        # 限制长度
+        content = content[:1500]
+        
+        # 提取验证码（可选，不强制显示）
+        match = re.search(r'(\d)\s*(\d)\s*(\d)\s*(\d)\s*(\d)\s*(\d)', content)
         if match:
             code = match.group(1)+match.group(2)+match.group(3)+match.group(4)+match.group(5)+match.group(6)
-            return f"验证码：{code}"
-        # 找连续6位数字
-        match = re.search(r'\b(\d{6})\b', raw)
-        if match:
-            return f"验证码：{match.group(1)}"
-    
-    return content.strip() or "无法解析邮件内容"
+            return f"验证码：{code}\n\n{content}"
+        
+        return content
+        
+    except Exception as e:
+        return f"解析失败"
 
 def get_latest_mails(email_addr, limit=10):
     if email_addr not in ACCOUNTS:
