@@ -99,86 +99,86 @@ def clean_html_to_text(html_text):
     return text.strip()
 
 def get_mail_content(msg):
-    """获取邮件内容 - 稳定版，专治各种格式"""
+    """获取邮件内容 - 超稳定版"""
     import re
     import html
     
-    content = ""
-    raw_content = ""
+    raw_text = ""
     
     try:
-        # 1. 先拿原始内容
+        # 方法1：遍历所有部分，收集所有文字
         if msg.is_multipart():
             for part in msg.walk():
                 payload = part.get_payload(decode=True)
                 if payload:
                     charset = part.get_content_charset() or 'utf-8'
                     try:
-                        raw_content = payload.decode(charset, errors='replace')
+                        text = payload.decode(charset, errors='replace')
                     except:
-                        raw_content = payload.decode('utf-8', errors='replace')
+                        text = payload.decode('utf-8', errors='replace')
                     
-                    if raw_content.strip():
-                        # 如果是HTML，去掉标签
-                        if part.get_content_type() == "text/html":
-                            # 去掉所有HTML标签
-                            content = re.sub(r'<[^>]+>', ' ', raw_content)
-                            # 解码HTML实体
-                            content = html.unescape(content)
-                            # 清理多余空白
-                            content = re.sub(r'\s+', ' ', content)
-                        else:
-                            content = raw_content
-                        break
+                    if text:
+                        raw_text += text + "\n"
         else:
             payload = msg.get_payload(decode=True)
             if payload:
                 charset = msg.get_content_charset() or 'utf-8'
                 try:
-                    raw_content = payload.decode(charset, errors='replace')
+                    raw_text = payload.decode(charset, errors='replace')
                 except:
-                    raw_content = payload.decode('utf-8', errors='replace')
-                if msg.get_content_type() == "text/html":
-                    content = re.sub(r'<[^>]+>', ' ', raw_content)
-                    content = html.unescape(content)
-                    content = re.sub(r'\s+', ' ', content)
-                else:
-                    content = raw_content
+                    raw_text = payload.decode('utf-8', errors='replace')
         
-        # 2. 如果内容还是空的，暴力提取所有文字
-        if not content or len(content) < 20:
-            raw = str(msg)
-            # 去掉HTML标签
-            content = re.sub(r'<[^>]+>', ' ', raw)
-            content = html.unescape(content)
-            content = re.sub(r'\s+', ' ', content)
+        # 如果还是空，暴力提取
+        if not raw_text:
+            raw_text = str(msg)
         
-        # 3. 提取验证码（重点：处理带空格的数字）
+        # 去掉HTML标签
+        clean_text = re.sub(r'<[^>]+>', ' ', raw_text)
+        # 解码HTML实体
+        clean_text = html.unescape(clean_text)
+        # 合并多余空白
+        clean_text = re.sub(r'\s+', ' ', clean_text)
+        
+        # 提取验证码（重点：处理带空格的数字）
         code = None
         
-        # 找带空格的6位数字（如 6 9 3 1 6 3）
-        code_match = re.search(r'(\d)\s*(\d)\s*(\d)\s*(\d)\s*(\d)\s*(\d)', content)
+        # 1. 找带空格的6位数字（Flova特色）
+        code_match = re.search(r'(\d)\s*(\d)\s*(\d)\s*(\d)\s*(\d)\s*(\d)', clean_text)
         if code_match:
             code = code_match.group(1) + code_match.group(2) + code_match.group(3) + \
                    code_match.group(4) + code_match.group(5) + code_match.group(6)
         
-        # 没找到就找连续6位数字
+        # 2. 没找到就找连续6位数字
         if not code:
-            code_match = re.search(r'\b(\d{6})\b', content)
+            code_match = re.search(r'\b(\d{6})\b', clean_text)
             if code_match:
                 code = code_match.group(1)
         
-        # 还没找到就找4-8位数字
+        # 3. 还没找到就找4-8位数字
         if not code:
-            code_match = re.search(r'(\d{4,8})', content)
+            code_match = re.search(r'(\d{4,8})', clean_text)
             if code_match:
                 code = code_match.group(1)
         
-        # 4. 返回结果
-        if code:
-            return f"验证码：{code}\n\n{content[:300]}"
+        # 4. 还是没找到，在原始内容中找
+        if not code:
+            code_match = re.search(r'(\d)\s*(\d)\s*(\d)\s*(\d)\s*(\d)\s*(\d)', raw_text)
+            if code_match:
+                code = code_match.group(1) + code_match.group(2) + code_match.group(3) + \
+                       code_match.group(4) + code_match.group(5) + code_match.group(6)
+        
+        # 返回结果
+        if code and code != "000000":
+            # 截取验证码附近的内容
+            pos = clean_text.find(code)
+            if pos >= 0:
+                snippet = clean_text[max(0, pos-50):pos+100]
+            else:
+                snippet = clean_text[:300]
+            return f"验证码：{code}\n\n{snippet}"
         else:
-            return content[:500] if content else "无法解析邮件内容"
+            # 没找到有效验证码，返回清理后的内容前500字
+            return clean_text[:500] if clean_text else "无法解析邮件内容"
         
     except Exception as e:
         return f"解析失败：{str(e)}"
