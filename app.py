@@ -99,42 +99,26 @@ def clean_html_to_text(html_text):
     return text.strip()
 
 def get_mail_content(msg):
-    """获取邮件纯文本内容"""
+    """最终稳定版 - 提取邮件纯文本"""
     import re
     import html
     
     content = ""
     
     try:
+        # 获取所有部分的内容
+        all_parts = []
         if msg.is_multipart():
             for part in msg.walk():
                 payload = part.get_payload(decode=True)
-                if not payload:
-                    continue
-                
-                charset = part.get_content_charset() or 'utf-8'
-                try:
-                    text = payload.decode(charset, errors='replace')
-                except:
-                    text = payload.decode('utf-8', errors='replace')
-                
-                if not text.strip():
-                    continue
-                
-                # 优先取纯文本
-                if part.get_content_type() == "text/plain":
-                    content = text.strip()
-                    break
-                
-                # 如果没有纯文本，暂存HTML
-                if part.get_content_type() == "text/html" and not content:
-                    # 去掉HTML标签
-                    clean = re.sub(r'<style[^>]*>.*?</style>', '', text, flags=re.DOTALL)
-                    clean = re.sub(r'<[^>]+>', ' ', clean)
-                    clean = html.unescape(clean)
-                    clean = re.sub(r'\s+', ' ', clean)
-                    content = clean.strip()
-        
+                if payload:
+                    charset = part.get_content_charset() or 'utf-8'
+                    try:
+                        text = payload.decode(charset, errors='replace')
+                    except:
+                        text = payload.decode('utf-8', errors='replace')
+                    if text.strip():
+                        all_parts.append((part.get_content_type(), text))
         else:
             payload = msg.get_payload(decode=True)
             if payload:
@@ -143,27 +127,45 @@ def get_mail_content(msg):
                     text = payload.decode(charset, errors='replace')
                 except:
                     text = payload.decode('utf-8', errors='replace')
-                
-                if msg.get_content_type() == "text/html":
-                    clean = re.sub(r'<[^>]+>', ' ', text)
-                    clean = html.unescape(clean)
-                    clean = re.sub(r'\s+', ' ', clean)
-                    content = clean.strip()
-                else:
-                    content = text.strip()
+                if text.strip():
+                    all_parts.append((msg.get_content_type(), text))
+        
+        # 优先取纯文本
+        for content_type, text in all_parts:
+            if content_type == "text/plain":
+                content = text.strip()
+                break
+        
+        # 没有纯文本就取HTML
+        if not content:
+            for content_type, text in all_parts:
+                if content_type == "text/html":
+                    # 去除HTML标签
+                    content = re.sub(r'<style[^>]*>.*?</style>', '', text, flags=re.DOTALL)
+                    content = re.sub(r'<[^>]+>', ' ', content)
+                    content = html.unescape(content)
+                    content = re.sub(r'\s+', ' ', content)
+                    content = content.strip()
+                    break
         
         if not content:
             return "无法解析邮件内容"
         
-        # 限制长度
-        content = content[:1500]
-        
-        # 提取验证码（可选，不强制显示）
+        # 提取验证码
+        code = None
         match = re.search(r'(\d)\s*(\d)\s*(\d)\s*(\d)\s*(\d)\s*(\d)', content)
         if match:
             code = match.group(1)+match.group(2)+match.group(3)+match.group(4)+match.group(5)+match.group(6)
-            return f"验证码：{code}\n\n{content}"
+        if not code:
+            match = re.search(r'\b(\d{6})\b', content)
+            if match:
+                code = match.group(1)
         
+        # 限制长度，避免太长
+        content = content[:1000]
+        
+        if code:
+            return f"验证码：{code}\n\n{content}"
         return content
         
     except Exception as e:
