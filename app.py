@@ -184,7 +184,7 @@ def get_latest_mails(email_addr, limit=10):
         
         all_mail_ids = []
         
-        # 读取收件箱
+        # 1. 读取收件箱
         try:
             mail.select("INBOX")
             status, data = mail.search(None, "ALL")
@@ -193,22 +193,17 @@ def get_latest_mails(email_addr, limit=10):
         except Exception as e:
             print(f"读取收件箱失败: {e}")
         
-        # 读取垃圾箱
-        try:
-            mail.select("[Gmail]/Spam")
-            status, data = mail.search(None, "ALL")
-            if data[0]:
-                all_mail_ids.extend(data[0].split())
-        except:
-            pass
-        
-        try:
-            mail.select("Spam")
-            status, data = mail.search(None, "ALL")
-            if data[0]:
-                all_mail_ids.extend(data[0].split())
-        except:
-            pass
+        # 2. 读取垃圾箱（如果存在）
+        spam_folders = ["[Gmail]/Spam", "Spam", "Junk", "Junk Email"]
+        for folder in spam_folders:
+            try:
+                mail.select(folder)
+                status, data = mail.search(None, "ALL")
+                if data[0]:
+                    all_mail_ids.extend(data[0].split())
+                break  # 找到了就退出
+            except:
+                continue  # 这个文件夹不存在，试下一个
         
         if not all_mail_ids:
             return []
@@ -217,36 +212,14 @@ def get_latest_mails(email_addr, limit=10):
         all_mail_ids = list(set(all_mail_ids))
         all_mail_ids.sort(key=lambda x: int(x))
         
+        # 取最新的 limit 封
         latest_ids = all_mail_ids[-limit:]
         mails = []
         
         for mail_id in reversed(latest_ids):
             try:
                 mail_id_str = mail_id.decode() if isinstance(mail_id, bytes) else str(mail_id)
-                
-                msg_data = None
-                try:
-                    mail.select("INBOX")
-                    _, msg_data = mail.fetch(mail_id, "(RFC822)")
-                except:
-                    pass
-                
-                if not msg_data or not msg_data[0]:
-                    try:
-                        mail.select("[Gmail]/Spam")
-                        _, msg_data = mail.fetch(mail_id, "(RFC822)")
-                    except:
-                        pass
-                
-                if not msg_data or not msg_data[0]:
-                    try:
-                        mail.select("Spam")
-                        _, msg_data = mail.fetch(mail_id, "(RFC822)")
-                    except:
-                        pass
-                
-                if not msg_data or not msg_data[0]:
-                    continue
+                _, msg_data = mail.fetch(mail_id, "(RFC822)")
                 
                 for part in msg_data:
                     if isinstance(part, tuple):
@@ -284,7 +257,6 @@ def get_latest_mails(email_addr, limit=10):
         return {'error': f'连接失败：{str(e)}'}
     
     finally:
-        # 无论成功失败，安全关闭连接
         if mail:
             try:
                 mail.close()
@@ -294,9 +266,6 @@ def get_latest_mails(email_addr, limit=10):
                 mail.logout()
             except:
                 pass
-        
-    except Exception as e:
-        return {'error': f'连接失败：{str(e)}'}
 
 def delete_mail_by_id(email_addr, mail_id):
     """删除指定邮件"""
