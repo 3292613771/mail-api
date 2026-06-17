@@ -283,9 +283,15 @@ def get_latest_mails(email_addr, limit=10):
                 print(f"读取单封邮件失败: {e}")
                 continue
         
-        mail.close()
-        mail.logout()
-        return mails
+       try:
+           mail.close()
+       except:
+           pass
+       try:
+           mail.logout()
+       except:
+           pass
+       return mails
         
     except Exception as e:
         return {'error': f'连接失败：{str(e)}'}
