@@ -183,42 +183,59 @@ def get_latest_mails(email_addr, limit=10):
         mail.login(email_addr, auth_code)
         
         all_mail_ids = []
+        folder_info = []  # 记录每个邮件来自哪个文件夹
         
         # 1. 读取收件箱
         try:
             mail.select("INBOX")
             status, data = mail.search(None, "ALL")
             if data[0]:
-                all_mail_ids.extend(data[0].split())
+                for mid in data[0].split():
+                    all_mail_ids.append(mid)
+                    folder_info.append("INBOX")
         except Exception as e:
             print(f"读取收件箱失败: {e}")
         
-        # 2. 读取垃圾箱（如果存在）
+        # 2. 读取垃圾箱
         spam_folders = ["[Gmail]/Spam", "Spam", "Junk", "Junk Email"]
         for folder in spam_folders:
             try:
                 mail.select(folder)
                 status, data = mail.search(None, "ALL")
                 if data[0]:
-                    all_mail_ids.extend(data[0].split())
-                break  # 找到了就退出
+                    for mid in data[0].split():
+                        all_mail_ids.append(mid)
+                        folder_info.append(folder)
+                break
             except:
-                continue  # 这个文件夹不存在，试下一个
+                continue
         
         if not all_mail_ids:
             return []
         
-        # 去重并排序
-        all_mail_ids = list(set(all_mail_ids))
-        all_mail_ids.sort(key=lambda x: int(x))
+        # 去重（保留第一次出现的）
+        seen = set()
+        unique_ids = []
+        unique_folders = []
+        for mid, folder in zip(all_mail_ids, folder_info):
+            mid_str = mid.decode() if isinstance(mid, bytes) else str(mid)
+            if mid_str not in seen:
+                seen.add(mid_str)
+                unique_ids.append(mid)
+                unique_folders.append(folder)
         
-        # 取最新的 limit 封
-        latest_ids = all_mail_ids[-limit:]
+        # 按ID排序
+        sorted_pairs = sorted(zip(unique_ids, unique_folders), key=lambda x: int(x[0]))
+        latest_pairs = sorted_pairs[-limit:]
+        
         mails = []
         
-        for mail_id in reversed(latest_ids):
+        for mail_id, folder in reversed(latest_pairs):
             try:
                 mail_id_str = mail_id.decode() if isinstance(mail_id, bytes) else str(mail_id)
+                
+                # 🔑 关键：先切换到邮件所在的文件夹
+                mail.select(folder)
                 _, msg_data = mail.fetch(mail_id, "(RFC822)")
                 
                 for part in msg_data:
@@ -248,7 +265,7 @@ def get_latest_mails(email_addr, limit=10):
                         })
                         break
             except Exception as e:
-                print(f"读取单封邮件失败: {e}")
+                print(f"读取单封邮件失败 (ID:{mail_id_str}, Folder:{folder}): {e}")
                 continue
         
         return mails
