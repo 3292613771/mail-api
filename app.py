@@ -183,13 +183,16 @@ def get_latest_mails(email_addr, limit=10):
         
         all_mail_ids = []
         
-        # 1. 读取收件箱
-        mail.select("INBOX")
-        status, data = mail.search(None, "ALL")
-        if data[0]:
-            all_mail_ids.extend(data[0].split())
+        # 尝试读取收件箱（必须）
+        try:
+            mail.select("INBOX")
+            status, data = mail.search(None, "ALL")
+            if data[0]:
+                all_mail_ids.extend(data[0].split())
+        except Exception as e:
+            print(f"读取收件箱失败: {e}")
         
-        # 2. 读取垃圾箱
+        # 尝试读取垃圾箱（如果失败不影响）
         try:
             mail.select("[Gmail]/Spam")
             status, data = mail.search(None, "ALL")
@@ -207,6 +210,8 @@ def get_latest_mails(email_addr, limit=10):
             pass
         
         if not all_mail_ids:
+            mail.close()
+            mail.logout()
             return []
         
         # 去重并排序
@@ -220,22 +225,38 @@ def get_latest_mails(email_addr, limit=10):
         for mail_id in reversed(latest_ids):
             try:
                 mail_id_str = mail_id.decode() if isinstance(mail_id, bytes) else str(mail_id)
-                mail.select("INBOX")
+                
+                # 尝试从收件箱读取
+                msg_data = None
                 try:
+                    mail.select("INBOX")
                     _, msg_data = mail.fetch(mail_id, "(RFC822)")
                 except:
+                    pass
+                
+                # 如果收件箱没有，尝试垃圾箱
+                if not msg_data or not msg_data[0]:
                     try:
                         mail.select("[Gmail]/Spam")
                         _, msg_data = mail.fetch(mail_id, "(RFC822)")
                     except:
+                        pass
+                
+                if not msg_data or not msg_data[0]:
+                    try:
                         mail.select("Spam")
                         _, msg_data = mail.fetch(mail_id, "(RFC822)")
+                    except:
+                        pass
+                
+                if not msg_data or not msg_data[0]:
+                    continue
                 
                 for part in msg_data:
                     if isinstance(part, tuple):
                         msg = email.message_from_bytes(part[1])
                         
-                        # ===== 提取时间 =====
+                        # 提取时间
                         date_str = msg.get("Date", "")
                         send_time = ""
                         try:
@@ -244,13 +265,7 @@ def get_latest_mails(email_addr, limit=10):
                                 dt = parsedate_to_datetime(date_str)
                                 send_time = dt.strftime("%Y-%m-%d %H:%M:%S")
                         except:
-                            # 如果解析失败，尝试简单提取
-                            import re
-                            match = re.search(r'(\d{1,2}\s+\w+\s+\d{4}\s+\d{1,2}:\d{2}:\d{2})', date_str)
-                            if match:
-                                send_time = match.group(1)
-                            else:
-                                send_time = date_str[:30]
+                            send_time = date_str[:30]
                         
                         subject = decode_str(msg.get("Subject", "无主题"))
                         sender = decode_str(msg.get("From", "未知发件人"))
@@ -261,11 +276,11 @@ def get_latest_mails(email_addr, limit=10):
                             'sender': sender,
                             'subject': subject,
                             'content': content,
-                            'time': send_time  # 新增时间字段
+                            'time': send_time
                         })
                         break
             except Exception as e:
-                print(f"读取邮件失败: {e}")
+                print(f"读取单封邮件失败: {e}")
                 continue
         
         mail.close()
