@@ -176,6 +176,7 @@ def get_latest_mails(email_addr, limit=10):
         return {'error': f'邮箱 "{email_addr}" 未绑定'}
     
     auth_code = ACCOUNTS[email_addr]
+    mail = None
     
     try:
         mail = imaplib.IMAP4_SSL("imap.qq.com")
@@ -183,7 +184,7 @@ def get_latest_mails(email_addr, limit=10):
         
         all_mail_ids = []
         
-        # 尝试读取收件箱（必须）
+        # 读取收件箱
         try:
             mail.select("INBOX")
             status, data = mail.search(None, "ALL")
@@ -192,7 +193,7 @@ def get_latest_mails(email_addr, limit=10):
         except Exception as e:
             print(f"读取收件箱失败: {e}")
         
-        # 尝试读取垃圾箱（如果失败不影响）
+        # 读取垃圾箱
         try:
             mail.select("[Gmail]/Spam")
             status, data = mail.search(None, "ALL")
@@ -210,15 +211,12 @@ def get_latest_mails(email_addr, limit=10):
             pass
         
         if not all_mail_ids:
-            mail.close()
-            mail.logout()
             return []
         
         # 去重并排序
         all_mail_ids = list(set(all_mail_ids))
         all_mail_ids.sort(key=lambda x: int(x))
         
-        # 取最新的 limit 封
         latest_ids = all_mail_ids[-limit:]
         mails = []
         
@@ -226,7 +224,6 @@ def get_latest_mails(email_addr, limit=10):
             try:
                 mail_id_str = mail_id.decode() if isinstance(mail_id, bytes) else str(mail_id)
                 
-                # 尝试从收件箱读取
                 msg_data = None
                 try:
                     mail.select("INBOX")
@@ -234,7 +231,6 @@ def get_latest_mails(email_addr, limit=10):
                 except:
                     pass
                 
-                # 如果收件箱没有，尝试垃圾箱
                 if not msg_data or not msg_data[0]:
                     try:
                         mail.select("[Gmail]/Spam")
@@ -256,7 +252,6 @@ def get_latest_mails(email_addr, limit=10):
                     if isinstance(part, tuple):
                         msg = email.message_from_bytes(part[1])
                         
-                        # 提取时间
                         date_str = msg.get("Date", "")
                         send_time = ""
                         try:
@@ -283,15 +278,22 @@ def get_latest_mails(email_addr, limit=10):
                 print(f"读取单封邮件失败: {e}")
                 continue
         
-       try:
-           mail.close()
-       except:
-           pass
-       try:
-           mail.logout()
-       except:
-           pass
-       return mails
+        return mails
+        
+    except Exception as e:
+        return {'error': f'连接失败：{str(e)}'}
+    
+    finally:
+        # 无论成功失败，安全关闭连接
+        if mail:
+            try:
+                mail.close()
+            except:
+                pass
+            try:
+                mail.logout()
+            except:
+                pass
         
     except Exception as e:
         return {'error': f'连接失败：{str(e)}'}
