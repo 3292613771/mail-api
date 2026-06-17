@@ -226,8 +226,9 @@
                     let html = `<div style="margin-bottom:20px;font-weight:bold;">📬 最新${data.mails.length}封邮件</div>`;
                     for (let mail of data.mails) {
                         html += `
-                            <div class="mail-item" data-mail-id="${escapeHtml(mail.mail_id)}">
+                            <div class="mail-item">
                                 <div class="mail-sender">📨 ${escapeHtml(mail.sender)}</div>
+                                <div class="mail-time">🕐 ${escapeHtml(mail.time)}</div>  <!-- 新增这一行 -->
                                 <div class="mail-subject">📝 ${escapeHtml(mail.subject)}</div>
                                 ${mail.code ? `<div class="mail-code">🔑 验证码：${mail.code}</div>` : ''}
                                 <div class="mail-content">${escapeHtml(mail.content).replace(/\n/g, '<br>')}</div>
