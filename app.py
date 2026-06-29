@@ -262,7 +262,15 @@ def get_latest_mails(email_addr, limit=10):
                     if isinstance(part, tuple):
                         msg = email.message_from_bytes(part[1])
                         
-                        send_time = get_beijing_time().strftime("%Y-%m-%d %H:%M:%S")
+                        date_str = msg.get("Date", "")
+                        send_time = ""
+                        try:
+                            from email.utils import parsedate_to_datetime
+                            if date_str:
+                                dt = parsedate_to_datetime(date_str)
+                                send_time = dt.strftime("%Y-%m-%d %H:%M:%S")
+                        except:
+                            send_time = date_str[:30]
                         subject = decode_str(msg.get("Subject", "无主题"))
                         sender = decode_str(msg.get("From", "未知发件人"))
                         content = get_mail_content(msg)
