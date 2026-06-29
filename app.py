@@ -9,6 +9,14 @@ from email.header import decode_header
 from email.utils import parsedate_to_datetime
 import hashlib
 import json
+from datetime import datetime, timezone, timedelta
+
+app = Flask(__name__)
+
+# ========== 删除密码配置 ==========
+DELETE_PASSWORD = "112233"
+DELETE_PASSWORD_HASH = hashlib.sha256(DELETE_PASSWORD.encode()).hexdigest()
+
 # ========== 管理后台数据 ==========
 EMAIL_STATUS_FILE = "email_status.json"
 MAIL_LOG_FILE = "mail_log.json"
@@ -23,6 +31,9 @@ def load_json(file):
 def save_json(file, data):
     with open(file, "w", encoding="utf-8") as f:
         json.dump(data, f, ensure_ascii=False, indent=2)
+
+def get_beijing_time():
+    return datetime.now(timezone.utc).astimezone(timezone(timedelta(hours=8)))
 
 def log_mail(email, sender, subject, content, code):
     logs = load_json(MAIL_LOG_FILE)
@@ -42,21 +53,9 @@ def log_mail(email, sender, subject, content, code):
     if len(logs["logs"]) > 1000:
         logs["logs"] = logs["logs"][-1000:]
     save_json(MAIL_LOG_FILE, logs)
-    
-app = Flask(__name__)
-
-# ========== 删除密码配置 ==========
-# 在这里设置删除密码（修改成你想要的密码）
-DELETE_PASSWORD = "112233"  # 改成你自己的密码
-# 存储密码的哈希值（用于验证）
-DELETE_PASSWORD_HASH = hashlib.sha256(DELETE_PASSWORD.encode()).hexdigest()
 
 # ========== 读取账号配置 ==========
 def load_accounts():
-    """读取账号配置，支持两种格式：
-    1. 邮箱1 邮箱2 邮箱3 授权码（空格隔开）
-    2. 邮箱----授权码（----隔开）
-    """
     accounts = {}
     try:
         with open("accounts.txt", "r", encoding="utf-8") as f:
@@ -65,7 +64,6 @@ def load_accounts():
                 if not line:
                     continue
                 
-                # 判断格式：如果包含 "----" 就用新格式
                 if "----" in line:
                     parts = line.split("----")
                     if len(parts) == 2:
@@ -76,7 +74,6 @@ def load_accounts():
                         accounts[email] = auth_code
                         print(f"加载账号（新格式）: {email}")
                 else:
-                    # 旧格式：空格隔开，前3个是邮箱，最后一个是授权码
                     parts = line.split()
                     if len(parts) >= 4:
                         emails = parts[0:3]
@@ -131,20 +128,13 @@ def clean_html_to_text(html_text):
     text = re.sub(r'[ \t]+', ' ', text)
     return text.strip()
 
-from datetime import datetime, timezone, timedelta
-
-def get_beijing_time():
-    return datetime.now(timezone.utc).astimezone(timezone(timedelta(hours=8)))
-
 def get_mail_content(msg):
-    """最终稳定版 - 提取邮件纯文本"""
     import re
     import html
     
     content = ""
     
     try:
-        # 获取所有部分的内容
         all_parts = []
         if msg.is_multipart():
             for part in msg.walk():
@@ -168,17 +158,14 @@ def get_mail_content(msg):
                 if text.strip():
                     all_parts.append((msg.get_content_type(), text))
         
-        # 优先取纯文本
         for content_type, text in all_parts:
             if content_type == "text/plain":
                 content = text.strip()
                 break
         
-        # 没有纯文本就取HTML
         if not content:
             for content_type, text in all_parts:
                 if content_type == "text/html":
-                    # 去除HTML标签
                     content = re.sub(r'<style[^>]*>.*?</style>', '', text, flags=re.DOTALL)
                     content = re.sub(r'<[^>]+>', ' ', content)
                     content = html.unescape(content)
@@ -189,7 +176,6 @@ def get_mail_content(msg):
         if not content:
             return "无法解析邮件内容"
         
-        # 提取验证码
         code = None
         match = re.search(r'(\d)\s*(\d)\s*(\d)\s*(\d)\s*(\d)\s*(\d)', content)
         if match:
@@ -199,7 +185,6 @@ def get_mail_content(msg):
             if match:
                 code = match.group(1)
         
-        # 限制长度，避免太长
         content = content[:1000]
         
         if code:
@@ -221,9 +206,9 @@ def get_latest_mails(email_addr, limit=10):
         mail.login(email_addr, auth_code)
         
         all_mail_ids = []
-        folder_info = []  # 记录每个邮件来自哪个文件夹
+        folder_info = []
         
-        # 1. 读取收件箱
+        # 读取收件箱
         try:
             mail.select("INBOX")
             status, data = mail.search(None, "ALL")
@@ -234,7 +219,7 @@ def get_latest_mails(email_addr, limit=10):
         except Exception as e:
             print(f"读取收件箱失败: {e}")
         
-        # 2. 读取垃圾箱
+        # 读取垃圾箱
         spam_folders = ["[Gmail]/Spam", "Spam", "Junk", "Junk Email"]
         for folder in spam_folders:
             try:
@@ -251,7 +236,6 @@ def get_latest_mails(email_addr, limit=10):
         if not all_mail_ids:
             return []
         
-        # 去重（保留第一次出现的）
         seen = set()
         unique_ids = []
         unique_folders = []
@@ -262,7 +246,6 @@ def get_latest_mails(email_addr, limit=10):
                 unique_ids.append(mid)
                 unique_folders.append(folder)
         
-        # 按ID排序
         sorted_pairs = sorted(zip(unique_ids, unique_folders), key=lambda x: int(x[0]))
         latest_pairs = sorted_pairs[-limit:]
         
@@ -272,12 +255,14 @@ def get_latest_mails(email_addr, limit=10):
             try:
                 mail_id_str = mail_id.decode() if isinstance(mail_id, bytes) else str(mail_id)
                 
-                # 🔑 关键：先切换到邮件所在的文件夹
                 mail.select(folder)
                 _, msg_data = mail.fetch(mail_id, "(RFC822)")
                 
-                send_time = get_beijing_time().strftime("%Y-%m-%d %H:%M:%S")
+                for part in msg_data:
+                    if isinstance(part, tuple):
+                        msg = email.message_from_bytes(part[1])
                         
+                        send_time = get_beijing_time().strftime("%Y-%m-%d %H:%M:%S")
                         subject = decode_str(msg.get("Subject", "无主题"))
                         sender = decode_str(msg.get("From", "未知发件人"))
                         content = get_mail_content(msg)
@@ -311,7 +296,6 @@ def get_latest_mails(email_addr, limit=10):
                 pass
 
 def delete_mail_by_id(email_addr, mail_id):
-    """删除指定邮件"""
     if email_addr not in ACCOUNTS:
         return {'error': f'邮箱 "{email_addr}" 未绑定'}
     
@@ -321,16 +305,11 @@ def delete_mail_by_id(email_addr, mail_id):
         mail = imaplib.IMAP4_SSL("imap.qq.com")
         mail.login(email_addr, auth_code)
         mail.select("INBOX")
-        
-        # 标记为删除
         mail.store(mail_id.encode(), '+FLAGS', '\\Deleted')
-        # 永久删除
         mail.expunge()
-        
         mail.close()
         mail.logout()
         return {'success': True, 'message': '邮件已删除'}
-        
     except Exception as e:
         return {'error': f'删除失败：{str(e)}'}
 
@@ -347,7 +326,6 @@ def check():
     if '@' not in email:
         email = email + "@qq.com"
     
-    # 检查邮箱是否被禁用
     status = load_json(EMAIL_STATUS_FILE)
     if status.get(email) == False:
         return jsonify({'error': '该邮箱已被禁用，请联系管理员'})
@@ -357,16 +335,15 @@ def check():
     
     result = get_latest_mails(email)
     
-    # 记录日志
     if isinstance(result, list) and result:
         for mail in result:
             log_mail(email, mail.get('sender'), mail.get('subject'), 
                     mail.get('content'), mail.get('code'))
     
     return jsonify({'success': True, 'mails': result, 'total': len(result) if isinstance(result, list) else 0})
+
 @app.route('/delete', methods=['POST'])
 def delete():
-    """删除邮件接口（需要密码验证）"""
     data = request.get_json()
     if not data:
         return jsonify({'error': '请提供 JSON 数据'})
@@ -375,7 +352,6 @@ def delete():
     mail_id = data.get('mail_id', '').strip()
     password = data.get('password', '').strip()
     
-    # 验证删除密码
     password_hash = hashlib.sha256(password.encode()).hexdigest()
     if password_hash != DELETE_PASSWORD_HASH:
         return jsonify({'error': '删除密码错误，无法删除'})
@@ -408,7 +384,6 @@ def health():
     return 'ok'
 
 # ========== 管理后台路由 ==========
-
 @app.route('/admin')
 def admin():
     return send_from_directory('.', 'admin.html')
@@ -417,11 +392,10 @@ def admin():
 def admin_emails():
     status = load_json(EMAIL_STATUS_FILE)
     emails = list(ACCOUNTS.keys())
-    result = {
+    return jsonify({
         "emails": emails,
         "status": {email: status.get(email, True) for email in emails}
-    }
-    return jsonify(result)
+    })
 
 @app.route('/admin/toggle', methods=['POST'])
 def admin_toggle():
@@ -458,7 +432,6 @@ def admin_add():
     
     ACCOUNTS[email] = auth
     
-    # 同步到 accounts.txt
     try:
         with open("accounts.txt", "a", encoding="utf-8") as f:
             f.write(f"\n{email} {auth}")
@@ -466,7 +439,7 @@ def admin_add():
         pass
     
     return jsonify({'success': True})
-    
+
 # ========== 启动服务 ==========
 if __name__ == '__main__':
     print("=" * 60)
