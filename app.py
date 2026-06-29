@@ -29,17 +29,21 @@ def log_mail(email, sender, subject, content, code):
     logs = load_json(MAIL_LOG_FILE)
     if "logs" not in logs:
         logs["logs"] = []
+    
+    from datetime import datetime, timezone, timedelta
+    beijing_time = datetime.now(timezone.utc).astimezone(timezone(timedelta(hours=8)))
+    time_str = beijing_time.strftime("%Y-%m-%d %H:%M:%S")
+    
     logs["logs"].append({
         "email": email,
         "sender": sender,
         "subject": subject,
         "code": code,
-        "time": datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+        "time": time_str
     })
     if len(logs["logs"]) > 1000:
         logs["logs"] = logs["logs"][-1000:]
     save_json(MAIL_LOG_FILE, logs)
-
 app = Flask(__name__)
 
 # ========== 删除密码配置 ==========
@@ -272,15 +276,9 @@ def get_latest_mails(email_addr, limit=10):
                     if isinstance(part, tuple):
                         msg = email.message_from_bytes(part[1])
                         
-                        date_str = msg.get("Date", "")
-                        send_time = ""
-                        try:
-                            from email.utils import parsedate_to_datetime
-                            if date_str:
-                                dt = parsedate_to_datetime(date_str)
-                                send_time = dt.strftime("%Y-%m-%d %H:%M:%S")
-                        except:
-                            send_time = date_str[:30]
+                        from datetime import datetime, timezone, timedelta
+beijing_time = datetime.now(timezone.utc).astimezone(timezone(timedelta(hours=8)))
+send_time = beijing_time.strftime("%Y-%m-%d %H:%M:%S")
                         
                         subject = decode_str(msg.get("Subject", "无主题"))
                         sender = decode_str(msg.get("From", "未知发件人"))
