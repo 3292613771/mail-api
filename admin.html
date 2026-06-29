@@ -27,6 +27,8 @@
             justify-content: space-between;
             align-items: center;
             margin-bottom: 20px;
+            flex-wrap: wrap;
+            gap: 10px;
         }
         .header h1 {
             font-size: 22px;
@@ -34,7 +36,8 @@
         }
         .header .stats {
             display: flex;
-            gap: 30px;
+            gap: 20px;
+            flex-wrap: wrap;
         }
         .header .stats span {
             font-size: 14px;
@@ -46,8 +49,13 @@
         }
         .main {
             display: grid;
-            grid-template-columns: 320px 1fr;
+            grid-template-columns: 380px 1fr;
             gap: 20px;
+        }
+        @media (max-width: 900px) {
+            .main {
+                grid-template-columns: 1fr;
+            }
         }
         .card {
             background: white;
@@ -70,24 +78,110 @@
             font-size: 12px;
             margin-left: 8px;
         }
-        /* 邮箱列表 */
+        .search-area {
+            display: flex;
+            gap: 8px;
+            margin-bottom: 12px;
+        }
+        .search-area input {
+            flex: 1;
+            padding: 10px 14px;
+            border: 2px solid #e0e0e0;
+            border-radius: 8px;
+            font-size: 14px;
+            outline: none;
+            transition: border 0.2s;
+        }
+        .search-area input:focus {
+            border-color: #667eea;
+        }
+        .search-area button {
+            padding: 10px 20px;
+            border: none;
+            border-radius: 8px;
+            cursor: pointer;
+            font-size: 14px;
+            font-weight: 500;
+        }
+        .btn-primary {
+            background: #667eea;
+            color: white;
+        }
+        .btn-primary:hover {
+            background: #5a67d8;
+        }
+        .btn-danger {
+            background: #ffebee;
+            color: #c62828;
+        }
+        .btn-danger:hover {
+            background: #ffcdd2;
+        }
+        .btn-success {
+            background: #e8f5e9;
+            color: #2e7d32;
+        }
+        .btn-success:hover {
+            background: #c8e6c9;
+        }
+        .btn-outline {
+            background: #f5f5f5;
+            color: #333;
+        }
+        .btn-outline:hover {
+            background: #e0e0e0;
+        }
+        .filter-tabs {
+            display: flex;
+            gap: 6px;
+            margin-bottom: 12px;
+            flex-wrap: wrap;
+        }
+        .filter-tabs button {
+            padding: 6px 16px;
+            border: 2px solid #e0e0e0;
+            border-radius: 20px;
+            background: white;
+            cursor: pointer;
+            font-size: 13px;
+            transition: all 0.2s;
+        }
+        .filter-tabs button.active {
+            border-color: #667eea;
+            background: #667eea;
+            color: white;
+        }
+        .filter-tabs button:hover:not(.active) {
+            border-color: #667eea;
+        }
+        .filter-tabs button .count {
+            font-size: 11px;
+            opacity: 0.7;
+        }
         .email-item {
             display: flex;
             justify-content: space-between;
             align-items: center;
-            padding: 10px 0;
+            padding: 10px 12px;
             border-bottom: 1px solid #f0f2f5;
+            border-radius: 6px;
+            transition: background 0.15s;
+        }
+        .email-item:hover {
+            background: #f8f9fa;
         }
         .email-item:last-child {
             border-bottom: none;
         }
         .email-item .info {
             flex: 1;
+            min-width: 0;
         }
         .email-item .info .addr {
             font-size: 14px;
             font-weight: 500;
             color: #333;
+            word-break: break-all;
         }
         .email-item .info .meta {
             font-size: 12px;
@@ -98,6 +192,7 @@
             padding: 3px 12px;
             border-radius: 20px;
             margin-right: 10px;
+            white-space: nowrap;
         }
         .email-item .status.active {
             background: #e8f5e9;
@@ -108,34 +203,46 @@
             color: #c62828;
         }
         .email-item .btn-toggle {
-            padding: 4px 12px;
+            padding: 4px 14px;
             border: none;
             border-radius: 6px;
             cursor: pointer;
             font-size: 12px;
+            font-weight: 500;
+            white-space: nowrap;
         }
         .email-item .btn-toggle.enable {
             background: #e8f5e9;
             color: #2e7d32;
         }
+        .email-item .btn-toggle.enable:hover {
+            background: #c8e6c9;
+        }
         .email-item .btn-toggle.disable {
             background: #ffebee;
             color: #c62828;
         }
-        .btn-add {
-            width: 100%;
-            padding: 10px;
-            background: #667eea;
-            color: white;
-            border: none;
-            border-radius: 8px;
-            cursor: pointer;
-            margin-top: 10px;
+        .email-item .btn-toggle.disable:hover {
+            background: #ffcdd2;
         }
-        .btn-add:hover {
-            background: #5a67d8;
+        .email-list-container {
+            max-height: 500px;
+            overflow-y: auto;
         }
-        /* 日志表格 */
+        .email-list-container .empty {
+            text-align: center;
+            padding: 30px;
+            color: #999;
+            font-size: 14px;
+        }
+        .email-list-container .result-count {
+            font-size: 13px;
+            color: #666;
+            padding: 8px 12px;
+            background: #f8f9fa;
+            border-radius: 6px;
+            margin-bottom: 10px;
+        }
         .log-table {
             width: 100%;
             font-size: 13px;
@@ -147,20 +254,22 @@
             border-bottom: 2px solid #e0e0e0;
             color: #666;
             font-weight: 600;
+            position: sticky;
+            top: 0;
+            background: white;
         }
         .log-table td {
             padding: 10px 8px;
             border-bottom: 1px solid #f0f2f5;
         }
-        .log-table .highlight {
-            background: #fff8e1;
-        }
         .log-table .code {
             background: #e8f5e9;
-            padding: 2px 8px;
+            padding: 2px 10px;
             border-radius: 4px;
             font-weight: bold;
             color: #2e7d32;
+            font-size: 14px;
+            letter-spacing: 1px;
         }
         .log-table .no-code {
             color: #999;
@@ -170,26 +279,23 @@
             display: flex;
             gap: 10px;
             margin-bottom: 15px;
+            flex-wrap: wrap;
         }
-        .filter-bar input,
+        .filter-bar input {
+            flex: 1;
+            padding: 8px 12px;
+            border: 1px solid #ddd;
+            border-radius: 6px;
+            font-size: 13px;
+            min-width: 120px;
+        }
         .filter-bar select {
             padding: 8px 12px;
             border: 1px solid #ddd;
             border-radius: 6px;
             font-size: 13px;
+            min-width: 120px;
         }
-        .filter-bar input {
-            flex: 1;
-        }
-        .filter-bar select {
-            width: 150px;
-        }
-        .empty {
-            text-align: center;
-            padding: 30px;
-            color: #999;
-        }
-        /* 右侧统计 */
         .stat-grid {
             display: grid;
             grid-template-columns: 1fr 1fr;
@@ -218,6 +324,7 @@
             border: none;
             border-radius: 6px;
             cursor: pointer;
+            font-size: 13px;
         }
         .refresh-btn:hover {
             background: #5a67d8;
@@ -322,6 +429,39 @@
             background: #f0f2f5;
             color: #333;
         }
+        .scrollable-table {
+            max-height: 500px;
+            overflow-y: auto;
+        }
+        .scrollable-table thead {
+            position: sticky;
+            top: 0;
+            background: white;
+            z-index: 10;
+        }
+        .highlight-row {
+            background: #fff8e1 !important;
+        }
+        .btn-sm {
+            font-size: 12px;
+            padding: 4px 10px;
+        }
+        @media (max-width: 600px) {
+            .header .stats {
+                font-size: 12px;
+                gap: 10px;
+            }
+            .email-item {
+                flex-wrap: wrap;
+                gap: 6px;
+            }
+            .email-item .status {
+                margin-right: 0;
+            }
+            .stat-grid {
+                grid-template-columns: 1fr 1fr;
+            }
+        }
     </style>
 </head>
 <body>
@@ -345,6 +485,7 @@
                 <span>📨 日志 <strong id="totalLogs">0</strong></span>
                 <span>⏱️ <strong id="lastUpdate">-</strong></span>
                 <button class="refresh-btn" onclick="loadAll()">🔄 刷新</button>
+                <button class="refresh-btn" style="background:#ff9800;" onclick="showAddModal()">➕ 添加</button>
             </div>
         </div>
 
@@ -352,19 +493,35 @@
             <!-- 左侧：邮箱管理 -->
             <div>
                 <div class="card" style="margin-bottom:20px;">
-                    <h2>📧 邮箱管理 <span class="badge">启用/禁用</span></h2>
-                    <div id="emailList">
-                        <div class="empty">加载中...</div>
+                    <h2>📧 邮箱管理 <span class="badge">搜索/筛选</span></h2>
+                    
+                    <!-- 搜索栏 -->
+                    <div class="search-area">
+                        <input type="text" id="searchInput" placeholder="输入邮箱搜索（支持模糊匹配）" onkeydown="if(event.key==='Enter') searchEmails()">
+                        <button class="btn-primary" onclick="searchEmails()">🔍 搜索</button>
                     </div>
-                    <button class="btn-add" onclick="showAddModal()">➕ 添加邮箱</button>
+                    
+                    <!-- 筛选标签 -->
+                    <div class="filter-tabs">
+                        <button class="active" data-filter="all" onclick="filterEmails('all', this)">📋 全部 <span class="count" id="countAll">0</span></button>
+                        <button data-filter="active" onclick="filterEmails('active', this)">✅ 已启用 <span class="count" id="countActive">0</span></button>
+                        <button data-filter="disabled" onclick="filterEmails('disabled', this)">⛔ 已禁用 <span class="count" id="countDisabled">0</span></button>
+                    </div>
+                    
+                    <!-- 邮箱列表 -->
+                    <div class="email-list-container" id="emailListContainer">
+                        <div class="empty">💡 输入邮箱搜索，或点击上方标签筛选</div>
+                    </div>
                 </div>
+
+                <!-- 统计 -->
                 <div class="card">
                     <h2>📊 统计</h2>
                     <div class="stat-grid">
-                        <div class="stat-item"><div class="num" id="statActive">0</div><div class="label">启用中</div></div>
-                        <div class="stat-item"><div class="num" id="statDisabled">0</div><div class="label">已禁用</div></div>
-                        <div class="stat-item"><div class="num" id="statTotalQueries">0</div><div class="label">总查询次数</div></div>
-                        <div class="stat-item"><div class="num" id="statTodayQueries">0</div><div class="label">今日查询</div></div>
+                        <div class="stat-item"><div class="num" id="statActive">0</div><div class="label">✅ 启用中</div></div>
+                        <div class="stat-item"><div class="num" id="statDisabled">0</div><div class="label">⛔ 已禁用</div></div>
+                        <div class="stat-item"><div class="num" id="statTotalQueries">0</div><div class="label">📊 总查询</div></div>
+                        <div class="stat-item"><div class="num" id="statTodayQueries">0</div><div class="label">📊 今日查询</div></div>
                     </div>
                 </div>
             </div>
@@ -378,15 +535,15 @@
                         <option value="">所有邮箱</option>
                     </select>
                 </div>
-                <div style="overflow-x:auto;">
+                <div class="scrollable-table">
                     <table class="log-table">
                         <thead>
                             <tr>
-                                <th>时间</th>
-                                <th>邮箱</th>
+                                <th style="width:150px;">时间</th>
+                                <th style="width:180px;">邮箱</th>
                                 <th>发件人</th>
                                 <th>主题</th>
-                                <th>验证码</th>
+                                <th style="width:100px;">验证码</th>
                             </tr>
                         </thead>
                         <tbody id="logBody">
@@ -413,11 +570,13 @@
 
     <script>
         // ===== 管理员密码 =====
-        const ADMIN_PASSWORD = "060910";  // 修改成你自己的密码
+        const ADMIN_PASSWORD = "123456";
 
-        let allLogs = [];
         let allEmails = [];
-        let emailStatus = {};  // 存储启用/禁用状态
+        let emailStatus = {};
+        let allLogs = [];
+        let currentFilter = 'all';
+        let currentSearchResults = null; // 用于搜索结果
 
         // ===== 登录 =====
         function adminLogin() {
@@ -447,23 +606,87 @@
                 const data = await res.json();
                 allEmails = data.emails || [];
                 emailStatus = data.status || {};
-                renderEmails();
+                
+                // 更新计数
+                const active = allEmails.filter(e => emailStatus[e] !== false).length;
+                const disabled = allEmails.filter(e => emailStatus[e] === false).length;
+                document.getElementById('countAll').textContent = allEmails.length;
+                document.getElementById('countActive').textContent = active;
+                document.getElementById('countDisabled').textContent = disabled;
                 document.getElementById('totalEmails').textContent = allEmails.length;
+                
+                // 如果当前是搜索结果模式，保留搜索结果，否则按筛选显示
+                if (currentSearchResults !== null) {
+                    renderEmailList(currentSearchResults);
+                } else {
+                    applyFilter();
+                }
             } catch (e) {
                 console.error('加载邮箱失败', e);
             }
         }
 
-        // ===== 渲染邮箱列表 =====
-        function renderEmails() {
-            const container = document.getElementById('emailList');
-            if (!allEmails.length) {
-                container.innerHTML = '<div class="empty">暂无邮箱</div>';
+        // ===== 搜索邮箱 =====
+        function searchEmails() {
+            const keyword = document.getElementById('searchInput').value.trim().toLowerCase();
+            if (!keyword) {
+                currentSearchResults = null;
+                applyFilter();
                 return;
             }
-            let html = '';
-            allEmails.forEach(email => {
-                const status = emailStatus[email] !== false; // 默认启用
+            
+            const results = allEmails.filter(e => e.toLowerCase().includes(keyword));
+            currentSearchResults = results;
+            renderEmailList(results);
+            
+            const container = document.getElementById('emailListContainer');
+            const countHtml = results.length > 0 ? `<div class="result-count">🔍 找到 ${results.length} 个匹配邮箱</div>` : '';
+            // renderEmailList 会处理显示，我们只需要确保它被调用
+        }
+
+        // ===== 筛选邮箱（全部/已启用/已禁用） =====
+        function filterEmails(filter, btn) {
+            currentFilter = filter;
+            currentSearchResults = null;
+            document.getElementById('searchInput').value = '';
+            
+            // 更新按钮状态
+            document.querySelectorAll('.filter-tabs button').forEach(b => b.classList.remove('active'));
+            if (btn) btn.classList.add('active');
+            
+            applyFilter();
+        }
+
+        function applyFilter() {
+            let filtered = [...allEmails];
+            
+            if (currentFilter === 'active') {
+                filtered = filtered.filter(e => emailStatus[e] !== false);
+            } else if (currentFilter === 'disabled') {
+                filtered = filtered.filter(e => emailStatus[e] === false);
+            }
+            // 'all' 不做筛选
+            
+            renderEmailList(filtered);
+        }
+
+        // ===== 渲染邮箱列表 =====
+        function renderEmailList(emails) {
+            const container = document.getElementById('emailListContainer');
+            
+            if (!emails || emails.length === 0) {
+                const msgs = {
+                    'all': '📭 暂无邮箱',
+                    'active': '✅ 暂无已启用的邮箱',
+                    'disabled': '⛔ 暂无已禁用的邮箱'
+                };
+                container.innerHTML = `<div class="empty">${msgs[currentFilter] || '📭 暂无邮箱'}</div>`;
+                return;
+            }
+            
+            let html = `<div class="result-count">📋 共 ${emails.length} 个邮箱</div>`;
+            emails.forEach(email => {
+                const status = emailStatus[email] !== false;
                 html += `
                     <div class="email-item">
                         <div class="info">
@@ -484,6 +707,9 @@
         async function toggleEmail(email) {
             const current = emailStatus[email] !== false;
             const newStatus = !current;
+            
+            if (!confirm(`确定要${newStatus ? '启用' : '禁用'} ${email} 吗？`)) return;
+            
             try {
                 const res = await fetch('/admin/toggle', {
                     method: 'POST',
@@ -493,7 +719,20 @@
                 const data = await res.json();
                 if (data.success) {
                     emailStatus[email] = newStatus;
-                    renderEmails();
+                    
+                    // 更新计数
+                    const active = allEmails.filter(e => emailStatus[e] !== false).length;
+                    const disabled = allEmails.filter(e => emailStatus[e] === false).length;
+                    document.getElementById('countActive').textContent = active;
+                    document.getElementById('countDisabled').textContent = disabled;
+                    
+                    // 刷新当前列表
+                    if (currentSearchResults !== null) {
+                        // 如果搜索结果中有这个邮箱，更新它
+                        renderEmailList(currentSearchResults);
+                    } else {
+                        applyFilter();
+                    }
                     updateStats();
                 } else {
                     alert('操作失败：' + (data.error || '未知错误'));
@@ -539,12 +778,12 @@
             }
 
             let html = '';
-            filtered.forEach(log => {
+            filtered.slice(0, 200).forEach(log => {
                 const code = log.code || '';
                 html += `
                     <tr>
                         <td style="font-size:12px;color:#999;">${log.time || '-'}</td>
-                        <td style="font-size:13px;">${log.email}</td>
+                        <td style="font-size:13px;word-break:break-all;">${log.email}</td>
                         <td style="font-size:13px;">${log.sender || '-'}</td>
                         <td style="font-size:13px;">${log.subject || '-'}</td>
                         <td>${code ? `<span class="code">${code}</span>` : '<span class="no-code">-</span>'}</td>
@@ -579,6 +818,7 @@
             document.getElementById('statActive').textContent = active;
             document.getElementById('statDisabled').textContent = disabled;
             document.getElementById('statTotalQueries').textContent = allLogs.length;
+            
             const today = new Date().toDateString();
             const todayLogs = allLogs.filter(l => {
                 const d = new Date(l.time);
@@ -613,7 +853,7 @@
                 });
                 const data = await res.json();
                 if (data.success) {
-                    alert('添加成功！');
+                    alert('✅ 添加成功！');
                     closeAddModal();
                     loadAll();
                 } else {
