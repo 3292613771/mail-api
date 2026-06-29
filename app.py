@@ -7,7 +7,12 @@ import os
 import time
 from email.header import decode_header
 from email.utils import parsedate_to_datetime
-from datetime import datetime
+from datetime import datetime, timezone, timedelta
+
+def get_beijing_time():
+    """获取北京时间"""
+    return datetime.now(timezone.utc).astimezone(timezone(timedelta(hours=8)))
+    
 import hashlib
 import json
 # ========== 管理后台数据 ==========
@@ -30,9 +35,7 @@ def log_mail(email, sender, subject, content, code):
     if "logs" not in logs:
         logs["logs"] = []
     
-    from datetime import datetime, timezone, timedelta
-    beijing_time = datetime.now(timezone.utc).astimezone(timezone(timedelta(hours=8)))
-    time_str = beijing_time.strftime("%Y-%m-%d %H:%M:%S")
+    time_str = get_beijing_time().strftime("%Y-%m-%d %H:%M:%S")
     
     logs["logs"].append({
         "email": email,
@@ -44,6 +47,7 @@ def log_mail(email, sender, subject, content, code):
     if len(logs["logs"]) > 1000:
         logs["logs"] = logs["logs"][-1000:]
     save_json(MAIL_LOG_FILE, logs)
+    
 app = Flask(__name__)
 
 # ========== 删除密码配置 ==========
@@ -272,13 +276,7 @@ def get_latest_mails(email_addr, limit=10):
                 mail.select(folder)
                 _, msg_data = mail.fetch(mail_id, "(RFC822)")
                 
-                for part in msg_data:
-                    if isinstance(part, tuple):
-                        msg = email.message_from_bytes(part[1])
-                        
-                        from datetime import datetime, timezone, timedelta
-beijing_time = datetime.now(timezone.utc).astimezone(timezone(timedelta(hours=8)))
-send_time = beijing_time.strftime("%Y-%m-%d %H:%M:%S")
+                send_time = get_beijing_time().strftime("%Y-%m-%d %H:%M:%S")
                         
                         subject = decode_str(msg.get("Subject", "无主题"))
                         sender = decode_str(msg.get("From", "未知发件人"))
@@ -443,7 +441,6 @@ def admin_toggle():
 def admin_logs():
     logs = load_json(MAIL_LOG_FILE)
     log_list = logs.get("logs", [])
-    # 按时间倒序排列（最新的在最上面）
     log_list.sort(key=lambda x: x.get('time', ''), reverse=True)
     return jsonify({"logs": log_list})
 
