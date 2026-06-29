@@ -7,12 +7,6 @@ import os
 import time
 from email.header import decode_header
 from email.utils import parsedate_to_datetime
-from datetime import datetime, timezone, timedelta
-
-def get_beijing_time():
-    """获取北京时间"""
-    return datetime.now(timezone.utc).astimezone(timezone(timedelta(hours=8)))
-    
 import hashlib
 import json
 # ========== 管理后台数据 ==========
@@ -35,7 +29,8 @@ def log_mail(email, sender, subject, content, code):
     if "logs" not in logs:
         logs["logs"] = []
     
-    time_str = get_beijing_time().strftime("%Y-%m-%d %H:%M:%S")
+    beijing_time = get_beijing_time()
+    time_str = beijing_time.strftime("%Y-%m-%d %H:%M:%S")
     
     logs["logs"].append({
         "email": email,
@@ -135,6 +130,11 @@ def clean_html_to_text(html_text):
     text = re.sub(r'\n\s*\n', '\n\n', text)
     text = re.sub(r'[ \t]+', ' ', text)
     return text.strip()
+
+from datetime import datetime, timezone, timedelta
+
+def get_beijing_time():
+    return datetime.now(timezone.utc).astimezone(timezone(timedelta(hours=8)))
 
 def get_mail_content(msg):
     """最终稳定版 - 提取邮件纯文本"""
