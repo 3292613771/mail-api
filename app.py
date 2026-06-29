@@ -7,8 +7,38 @@ import os
 import time
 from email.header import decode_header
 from email.utils import parsedate_to_datetime
-import datetime
+from datetime import datetime
 import hashlib
+import json
+# ========== 管理后台数据 ==========
+EMAIL_STATUS_FILE = "email_status.json"
+MAIL_LOG_FILE = "mail_log.json"
+
+def load_json(file):
+    try:
+        with open(file, "r", encoding="utf-8") as f:
+            return json.load(f)
+    except:
+        return {}
+
+def save_json(file, data):
+    with open(file, "w", encoding="utf-8") as f:
+        json.dump(data, f, ensure_ascii=False, indent=2)
+
+def log_mail(email, sender, subject, content, code):
+    logs = load_json(MAIL_LOG_FILE)
+    if "logs" not in logs:
+        logs["logs"] = []
+    logs["logs"].append({
+        "email": email,
+        "sender": sender,
+        "subject": subject,
+        "code": code,
+        "time": datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+    })
+    if len(logs["logs"]) > 1000:
+        logs["logs"] = logs["logs"][-1000:]
+    save_json(MAIL_LOG_FILE, logs)
 
 app = Flask(__name__)
 
@@ -316,29 +346,28 @@ def index():
 @app.route('/check', methods=['POST'])
 def check():
     data = request.get_json()
-    if not data:
-        return jsonify({'error': '请提供 JSON 数据'})
+    email = data.get('email', '').strip()
     
-    email_addr = data.get('email', '').strip()
+    if '@' not in email:
+        email = email + "@qq.com"
     
-    if not email_addr:
-        return jsonify({'error': '请输入邮箱地址'})
+    # 检查邮箱是否被禁用
+    status = load_json(EMAIL_STATUS_FILE)
+    if status.get(email) == False:
+        return jsonify({'error': '该邮箱已被禁用，请联系管理员'})
     
-    if '@' not in email_addr:
-        email_addr = email_addr + "@qq.com"
+    if email not in ACCOUNTS:
+        return jsonify({'error': '邮箱未绑定'})
     
-    result = get_latest_mails(email_addr)
+    result = get_latest_mails(email)
     
-    if isinstance(result, dict) and 'error' in result:
-        return jsonify({'error': result['error']})
+    # 记录日志
+    if isinstance(result, list) and result:
+        for mail in result:
+            log_mail(email, mail.get('sender'), mail.get('subject'), 
+                    mail.get('content'), mail.get('code'))
     
-    return jsonify({
-        'success': True,
-        'email': email_addr,
-        'mails': result,
-        'total': len(result)
-    })
-
+    return jsonify({'success': True, 'mails': result, 'total': len(result) if isinstance(result, list) else 0})
 @app.route('/delete', methods=['POST'])
 def delete():
     """删除邮件接口（需要密码验证）"""
@@ -382,6 +411,64 @@ def list_users():
 def health():
     return 'ok'
 
+# ========== 管理后台路由 ==========
+
+@app.route('/admin')
+def admin():
+    return send_from_directory('.', 'admin.html')
+
+@app.route('/admin/emails')
+def admin_emails():
+    status = load_json(EMAIL_STATUS_FILE)
+    emails = list(ACCOUNTS.keys())
+    result = {
+        "emails": emails,
+        "status": {email: status.get(email, True) for email in emails}
+    }
+    return jsonify(result)
+
+@app.route('/admin/toggle', methods=['POST'])
+def admin_toggle():
+    data = request.get_json()
+    email = data.get('email')
+    enabled = data.get('enabled', True)
+    
+    if email not in ACCOUNTS:
+        return jsonify({'error': '邮箱不存在'})
+    
+    status = load_json(EMAIL_STATUS_FILE)
+    status[email] = enabled
+    save_json(EMAIL_STATUS_FILE, status)
+    return jsonify({'success': True})
+
+@app.route('/admin/logs')
+def admin_logs():
+    logs = load_json(MAIL_LOG_FILE)
+    return jsonify({"logs": logs.get("logs", [])})
+
+@app.route('/admin/add', methods=['POST'])
+def admin_add():
+    data = request.get_json()
+    email = data.get('email')
+    auth = data.get('auth')
+    
+    if not email or not auth:
+        return jsonify({'error': '请提供邮箱和授权码'})
+    
+    if '@' not in email:
+        email = email + "@qq.com"
+    
+    ACCOUNTS[email] = auth
+    
+    # 同步到 accounts.txt
+    try:
+        with open("accounts.txt", "a", encoding="utf-8") as f:
+            f.write(f"\n{email} {auth}")
+    except:
+        pass
+    
+    return jsonify({'success': True})
+    
 # ========== 启动服务 ==========
 if __name__ == '__main__':
     print("=" * 60)
