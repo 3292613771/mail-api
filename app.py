@@ -444,7 +444,10 @@ def admin_toggle():
 @app.route('/admin/logs')
 def admin_logs():
     logs = load_json(MAIL_LOG_FILE)
-    return jsonify({"logs": logs.get("logs", [])})
+    log_list = logs.get("logs", [])
+    # 按时间倒序排列（最新的在最上面）
+    log_list.sort(key=lambda x: x.get('time', ''), reverse=True)
+    return jsonify({"logs": log_list})
 
 @app.route('/admin/add', methods=['POST'])
 def admin_add():
