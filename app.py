@@ -220,7 +220,7 @@ def get_latest_mails(email_addr, limit=10):
             print(f"读取收件箱失败: {e}")
         
         # 读取垃圾箱
-        spam_folders = ["[Gmail]/Spam", "Spam", "Junk", "Junk Email"]
+        spam_folders = ["垃圾箱", "广告邮件", "[Gmail]/Spam", "Spam", "Junk", "Junk Email"]
         for folder in spam_folders:
             try:
                 mail.select(folder)
