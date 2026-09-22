@@ -54,8 +54,15 @@ def log_mail(email, sender, subject, content, code):
         logs["logs"] = logs["logs"][-1000:]
     save_json(MAIL_LOG_FILE, logs)
 
-# ========== 读取账号配置 ==========
+# ========== 读取账号配置（带缓存，只读一次，静默加载） ==========
+_ACCOUNTS_CACHE = None
+
 def load_accounts():
+    """加载账号，带缓存，只读一次，静默加载（防止刷屏拖死程序）"""
+    global _ACCOUNTS_CACHE
+    if _ACCOUNTS_CACHE is not None:
+        return _ACCOUNTS_CACHE
+
     accounts = {}
     try:
         with open("accounts.txt", "r", encoding="utf-8") as f:
@@ -67,31 +74,31 @@ def load_accounts():
                 if "----" in line:
                     parts = line.split("----")
                     if len(parts) == 2:
-                        email = parts[0].strip()
+                        email_addr = parts[0].strip()
                         auth_code = parts[1].strip()
-                        if '@' not in email:
-                            email = email + "@qq.com"
-                        accounts[email] = auth_code
-                        print(f"加载账号（新格式）: {email}")
+                        if '@' not in email_addr:
+                            email_addr = email_addr + "@qq.com"
+                        accounts[email_addr] = auth_code
                 else:
                     parts = line.split()
                     if len(parts) >= 4:
                         emails = parts[0:3]
                         auth_code = parts[3]
-                        for email in emails:
-                            if '@' not in email:
-                                email = email + "@qq.com"
-                            accounts[email] = auth_code
-                            print(f"加载账号（旧格式）: {email}")
+                        for email_addr in emails:
+                            if '@' not in email_addr:
+                                email_addr = email_addr + "@qq.com"
+                            accounts[email_addr] = auth_code
                     elif len(parts) == 2:
-                        email = parts[0]
+                        email_addr = parts[0]
                         auth_code = parts[1]
-                        if '@' not in email:
-                            email = email + "@qq.com"
-                        accounts[email] = auth_code
-                        print(f"加载账号（旧格式）: {email}")
+                        if '@' not in email_addr:
+                            email_addr = email_addr + "@qq.com"
+                        accounts[email_addr] = auth_code
     except Exception as e:
         print(f"读取账号失败: {e}")
+
+    print(f"[DEBUG] 账号加载完成，共 {len(accounts)} 个邮箱")
+    _ACCOUNTS_CACHE = accounts
     return accounts
 
 ACCOUNTS = load_accounts()
@@ -129,9 +136,6 @@ def clean_html_to_text(html_text):
     return text.strip()
 
 def get_mail_content(msg):
-    import re
-    import html
-    
     content = ""
     
     try:
@@ -265,7 +269,6 @@ def get_latest_mails(email_addr, limit=10):
                         date_str = msg.get("Date", "")
                         send_time = ""
                         try:
-                            from email.utils import parsedate_to_datetime
                             if date_str:
                                 dt = parsedate_to_datetime(date_str)
                                 send_time = dt.strftime("%Y-%m-%d %H:%M:%S")
@@ -329,23 +332,23 @@ def index():
 @app.route('/check', methods=['POST'])
 def check():
     data = request.get_json()
-    email = data.get('email', '').strip()
+    email_addr = data.get('email', '').strip()
     
-    if '@' not in email:
-        email = email + "@qq.com"
+    if '@' not in email_addr:
+        email_addr = email_addr + "@qq.com"
     
     status = load_json(EMAIL_STATUS_FILE)
-    if status.get(email) == False:
+    if status.get(email_addr) == False:
         return jsonify({'error': '该邮箱已被禁用，请联系管理员'})
     
-    if email not in ACCOUNTS:
+    if email_addr not in ACCOUNTS:
         return jsonify({'error': '邮箱未绑定'})
     
-    result = get_latest_mails(email)
+    result = get_latest_mails(email_addr)
     
     if isinstance(result, list) and result:
         for mail in result:
-            log_mail(email, mail.get('sender'), mail.get('subject'), 
+            log_mail(email_addr, mail.get('sender'), mail.get('subject'), 
                     mail.get('content'), mail.get('code'))
     
     return jsonify({'success': True, 'mails': result, 'total': len(result) if isinstance(result, list) else 0})
@@ -408,14 +411,14 @@ def admin_emails():
 @app.route('/admin/toggle', methods=['POST'])
 def admin_toggle():
     data = request.get_json()
-    email = data.get('email')
+    email_addr = data.get('email')
     enabled = data.get('enabled', True)
     
-    if email not in ACCOUNTS:
+    if email_addr not in ACCOUNTS:
         return jsonify({'error': '邮箱不存在'})
     
     status = load_json(EMAIL_STATUS_FILE)
-    status[email] = enabled
+    status[email_addr] = enabled
     save_json(EMAIL_STATUS_FILE, status)
     return jsonify({'success': True})
 
@@ -429,20 +432,20 @@ def admin_logs():
 @app.route('/admin/add', methods=['POST'])
 def admin_add():
     data = request.get_json()
-    email = data.get('email')
+    email_addr = data.get('email')
     auth = data.get('auth')
     
-    if not email or not auth:
+    if not email_addr or not auth:
         return jsonify({'error': '请提供邮箱和授权码'})
     
-    if '@' not in email:
-        email = email + "@qq.com"
+    if '@' not in email_addr:
+        email_addr = email_addr + "@qq.com"
     
-    ACCOUNTS[email] = auth
+    ACCOUNTS[email_addr] = auth
     
     try:
         with open("accounts.txt", "a", encoding="utf-8") as f:
-            f.write(f"\n{email} {auth}")
+            f.write(f"\n{email_addr} {auth}")
     except:
         pass
     
@@ -450,11 +453,11 @@ def admin_add():
 
 # ========== 启动服务 ==========
 if __name__ == '__main__':
+    PORT = int(os.environ.get("PORT", 5000))
     print("=" * 60)
-    print("邮箱查询系统启动（支持删除邮件 + 删除密码保护）")
+    print("邮箱查询系统启动")
     print("=" * 60)
-    print(f"已绑定 {len(ACCOUNTS)} 个邮箱")
-    print(f"删除密码: {DELETE_PASSWORD}")
-    print("访问 http://127.0.0.1:5000")
+    print(f"[DEBUG] 已绑定 {len(ACCOUNTS)} 个邮箱")
+    print(f"[DEBUG] 监听端口: {PORT}")
     print("=" * 60)
-    app.run(host='0.0.0.0', port=5000)
+    app.run(host='0.0.0.0', port=PORT, debug=False)
