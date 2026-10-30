@@ -1,0 +1,46 @@
+name: deploy
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+concurrency:
+  group: deploy-mail-api
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Prepare SSH
+        run: |
+          mkdir -p ~/.ssh
+          chmod 700 ~/.ssh
+          printf '%s\n' "${{ secrets.DEPLOY_SSH_KEY }}" > ~/.ssh/id_ed25519
+          chmod 600 ~/.ssh/id_ed25519
+          echo "43.133.197.85 ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIDHUoj3ftrN7Kaj7N30a3QHl5zbYDN2kSwgzdg4H6//3" > ~/.ssh/known_hosts
+          chmod 600 ~/.ssh/known_hosts
+
+      - name: Sync source to server
+        run: |
+          rsync -az --delete \
+            --exclude '.git' --exclude '.github' --exclude '__pycache__' --exclude '*.pyc' \
+            ./ ubuntu@43.133.197.85:/home/ubuntu/zbmigrate/deploy/mail-api/app/
+
+      - name: Build and restart
+        run: |
+          ssh ubuntu@43.133.197.85 '/home/ubuntu/zbmigrate/deploy/deploy.sh mail-api'
+
+      - name: Verify
+        run: |
+          code=$(ssh ubuntu@43.133.197.85 'curl -s -o /dev/null -w "%{http_code}" --max-time 10 http://127.0.0.1:8081/')
+          echo "health check http_status=$code"
+          case "$code" in
+            200|302) echo "OK" ;;
+            *) echo "deploy failed: unexpected status $code"; exit 1 ;;
+          esac
