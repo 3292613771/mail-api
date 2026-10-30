@@ -308,6 +308,28 @@ def mail_folders(mail):
     return folders
 
 
+def trash_folder(mail):
+    """Return the server-identified Trash folder, preserving its IMAP encoding."""
+    status, rows = mail.list()
+    if status != 'OK':
+        return None
+    for row in rows or []:
+        if not isinstance(row, bytes):
+            continue
+        match = re.match(rb'\((.*?)\)\s+(?:"[^\"]*"|NIL)\s+(.+)$', row)
+        if match and b'\\trash' in match.group(1).lower().split():
+            return match.group(2)
+    return None
+
+
+def current_capabilities(mail):
+    """IMAP servers may advertise UIDPLUS/MOVE only after authentication."""
+    status, rows = mail.capability()
+    if status != 'OK':
+        raise imaplib.IMAP4.error('无法获取邮箱功能列表')
+    return set(b' '.join(row for row in rows or [] if isinstance(row, bytes)).upper().split())
+
+
 def fetch_mails(email_addr, limit):
     mails = []
     with mail_session(email_addr) as mail:
@@ -437,16 +459,25 @@ def delete_mail_by_id(email_addr, mail_id):
             current = mail.response('UIDVALIDITY')[1][0]
             if status != 'OK' or current != validity.encode():
                 return {'error': '邮箱已变更，请刷新列表'}
-            # UID EXPUNGE 只删除指定邮件，不清空其他客户端标记删除的邮件。
-            if b'UIDPLUS' not in mail.capabilities:
-                return {'error': '邮箱不支持安全的单封删除，未执行删除'}
             status, rows = mail.uid('search', None, 'UID', uid)
             if status != 'OK' or not rows or uid.encode() not in rows[0].split():
                 return {'error': '邮件不存在，请刷新列表'}
-            if mail.uid('store', uid, '+FLAGS.SILENT', r'(\Deleted)')[0] != 'OK':
-                return {'error': '删除标记失败'}
-            if mail.uid('expunge', uid)[0] != 'OK':
-                return {'error': '删除未确认，请刷新检查'}
+            capabilities = current_capabilities(mail)
+            # UID EXPUNGE is scoped to one UID; plain EXPUNGE would purge other
+            # messages already marked Deleted by another mail client.
+            if b'UIDPLUS' in capabilities:
+                if mail.uid('store', uid, '+FLAGS.SILENT', r'(\Deleted)')[0] != 'OK':
+                    return {'error': '删除标记失败'}
+                if mail.uid('expunge', uid)[0] != 'OK':
+                    return {'error': '删除未确认，请刷新检查'}
+            elif b'MOVE' in capabilities:
+                trash = trash_folder(mail)
+                if trash is None or trash == folder:
+                    return {'error': '邮箱未提供可用的已删除文件夹，未执行删除'}
+                if mail.uid('move', uid, trash)[0] != 'OK':
+                    return {'error': '移动到已删除文件夹失败，请刷新检查'}
+            else:
+                return {'error': '邮箱不支持安全的单封删除，未执行删除'}
         return {'success': True, 'message': '邮件已删除'}
     except (OSError, imaplib.IMAP4.error, ValueError):
         return {'error': '删除失败或超时，请刷新检查'}
